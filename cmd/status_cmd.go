@@ -6,7 +6,6 @@ import (
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
 
-	"github.com/cocoonstack/cocoon-net/platform"
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
@@ -17,7 +16,7 @@ func newStatusCmd() *cobra.Command {
 		RunE:  runStatus,
 	}
 
-	cmd.Flags().StringVar(&flagStateDir, "state-dir", "/var/lib/cocoon/net", "state directory")
+	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 
 	return cmd
 }
@@ -31,7 +30,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load pool state: %w", err)
 	}
 
-	plat, err := platform.New(state.Platform)
+	plat, err := newPlatform(state.Platform)
 	if err != nil {
 		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}

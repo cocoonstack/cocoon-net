@@ -3,10 +3,9 @@ package node
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/projecteru2/core/log"
 )
@@ -69,7 +68,7 @@ func Setup(ctx context.Context, cfg *Config) error {
 	}
 
 	// 4. iptables.
-	if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.PrimaryNIC, secondaryNICs); err != nil {
+	if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
@@ -107,8 +106,7 @@ func detectSecondaryNICs() []string {
 	var nics []string
 	for i := 1; i <= 7; i++ {
 		name := fmt.Sprintf("eth%d", i)
-		out, err := exec.Command("ip", "link", "show", name).CombinedOutput() //nolint:gosec // ip args from trusted NIC name
-		if err == nil && strings.Contains(string(out), name) {
+		if _, err := net.InterfaceByName(name); err == nil {
 			nics = append(nics, name)
 		}
 	}

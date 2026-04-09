@@ -2,12 +2,16 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/cocoonstack/cocoon-net/platform"
+	"github.com/cocoonstack/cocoon-net/platform/gke"
+	"github.com/cocoonstack/cocoon-net/platform/volcengine"
 	"github.com/cocoonstack/cocoon-net/version"
 )
 
@@ -42,4 +46,27 @@ func run() int {
 		return 1
 	}
 	return 0
+}
+
+// newPlatform returns a CloudPlatform by name.
+func newPlatform(name string) (platform.CloudPlatform, error) {
+	switch name {
+	case "gke":
+		return &gke.GKE{}, nil
+	case "volcengine":
+		return &volcengine.Volcengine{}, nil
+	default:
+		return nil, fmt.Errorf("unknown platform: %s (valid: gke, volcengine)", name)
+	}
+}
+
+// detectPlatform auto-detects the cloud platform by probing metadata endpoints.
+func detectPlatform(ctx context.Context) (platform.CloudPlatform, error) {
+	if gke.Detect(ctx) {
+		return &gke.GKE{}, nil
+	}
+	if volcengine.Detect(ctx) {
+		return &volcengine.Volcengine{}, nil
+	}
+	return nil, fmt.Errorf("could not detect cloud platform — set --platform explicitly (gke|volcengine)")
 }

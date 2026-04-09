@@ -1,16 +1,12 @@
 package platform
 
-import (
-	"context"
-	"fmt"
-)
+import "context"
 
 // CloudPlatform is the interface implemented by each cloud provider.
 type CloudPlatform interface {
 	// Name returns the platform identifier ("gke", "volcengine").
 	Name() string
 	// ProvisionNetwork provisions cloud networking resources for the node.
-	// Returns the list of VPC-routable IPs available for VM DHCP.
 	ProvisionNetwork(ctx context.Context, cfg *Config) (*NetworkResult, error)
 	// Status returns current IP pool status.
 	Status(ctx context.Context) (*PoolStatus, error)
@@ -20,20 +16,20 @@ type CloudPlatform interface {
 
 // Config holds the parameters for network provisioning.
 type Config struct {
-	NodeName   string   // virtual node name (e.g. "cocoon-pool")
-	SubnetCIDR string   // desired VM subnet CIDR (e.g. "172.20.100.0/24")
-	PoolSize   int      // desired number of IPs (default 140)
-	Gateway    string   // cni0 gateway IP (e.g. "172.20.100.1")
-	DNSServers []string // DNS for DHCP clients
-	PrimaryNIC string   // host primary NIC (auto-detected if empty)
+	NodeName   string
+	SubnetCIDR string
+	PoolSize   int
+	Gateway    string
+	DNSServers []string
+	PrimaryNIC string
 }
 
 // NetworkResult is returned by ProvisionNetwork.
 type NetworkResult struct {
-	Platform   string // "gke" or "volcengine"
+	Platform   string
 	SubnetCIDR string
 	Gateway    string
-	IPs        []string // VPC-routable IPs for DHCP pool
+	IPs        []string
 	PrimaryNIC string
 }
 
@@ -42,16 +38,4 @@ type PoolStatus struct {
 	SubnetID string
 	ENIIDs   []string
 	IPs      []string
-}
-
-// New returns a CloudPlatform by name without auto-detecting.
-func New(name string) (CloudPlatform, error) {
-	switch name {
-	case "gke":
-		return &GKEPlatform{}, nil
-	case "volcengine":
-		return &VolcenginePlatform{}, nil
-	default:
-		return nil, fmt.Errorf("unknown platform: %s (valid: gke, volcengine)", name)
-	}
 }

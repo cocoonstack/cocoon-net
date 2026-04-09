@@ -6,7 +6,6 @@ import (
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
 
-	"github.com/cocoonstack/cocoon-net/platform"
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
@@ -17,7 +16,7 @@ func newTeardownCmd() *cobra.Command {
 		RunE:  runTeardown,
 	}
 
-	cmd.Flags().StringVar(&flagStateDir, "state-dir", "/var/lib/cocoon/net", "state directory")
+	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
 
 	return cmd
@@ -38,7 +37,7 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	plat, err := platform.New(state.Platform)
+	plat, err := newPlatform(state.Platform)
 	if err != nil {
 		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}

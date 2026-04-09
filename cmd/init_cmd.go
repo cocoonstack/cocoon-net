@@ -12,6 +12,8 @@ import (
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
+const defaultStateDir = "/var/lib/cocoon/net"
+
 var (
 	flagPlatform   string
 	flagNodeName   string
@@ -38,7 +40,7 @@ func newInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
 	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (auto-detect if not set)")
 	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
-	cmd.Flags().StringVar(&flagStateDir, "state-dir", "/var/lib/cocoon/net", "state directory")
+	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
 
 	_ = cmd.MarkFlagRequired("node-name")
@@ -76,27 +78,24 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Detect or validate platform.
 	var plat platform.CloudPlatform
 	var err error
 	if flagPlatform != "" {
-		plat, err = platform.New(flagPlatform)
+		plat, err = newPlatform(flagPlatform)
 	} else {
-		plat, err = platform.Detect(ctx)
+		plat, err = detectPlatform(ctx)
 	}
 	if err != nil {
 		return fmt.Errorf("detect platform: %w", err)
 	}
 	logger.Infof(ctx, "platform: %s", plat.Name())
 
-	// Provision cloud networking.
 	result, err := plat.ProvisionNetwork(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("provision network: %w", err)
 	}
 	logger.Infof(ctx, "provisioned %d IPs on subnet %s", len(result.IPs), result.SubnetCIDR)
 
-	// Configure node networking.
 	nodeCfg := &node.Config{
 		Gateway:    result.Gateway,
 		SubnetCIDR: result.SubnetCIDR,
@@ -109,7 +108,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	}
 	logger.Info(ctx, "node networking configured")
 
-	// Write pool state.
 	state := &pool.State{
 		Platform: result.Platform,
 		NodeName: cfg.NodeName,

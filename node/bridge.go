@@ -23,7 +23,10 @@ func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string) error {
 	}
 
 	// Assign gateway address (idempotent via replace).
-	_, mask, _ := parseCIDR(subnetCIDR)
+	_, mask, err := parseCIDR(subnetCIDR)
+	if err != nil {
+		return fmt.Errorf("parse subnet cidr: %w", err)
+	}
 	cidr := fmt.Sprintf("%s/%s", gatewayIP, mask)
 	//nolint:gosec // ip args from trusted config
 	addrCmd := exec.CommandContext(ctx, "ip", "addr", "replace", cidr, "dev", cni0Bridge)

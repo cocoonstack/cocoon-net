@@ -1,75 +1,98 @@
-package platform
+package volcengine
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
+
+var _ platform.CloudPlatform = (*Volcengine)(nil)
 
 const (
-	vePrimaryNICName = "eth0"
-	veENIsPerNode    = 7
-	veIPsPerENI      = 20
+	metadataBase = "http://100.96.0.96/latest/meta-data"
+	defaultNIC   = "eth0"
+	enisPerNode  = 7
+	ipsPerENI    = 20
+
+	eniTypePrimary = "primary"
+
+	metadataTimeout        = 2 * time.Second
+	createPropagationDelay = 2 * time.Second
+	attachPropagationDelay = 4 * time.Second
 )
 
-// VolcenginePlatform implements CloudPlatform for Volcengine (火山引擎).
-type VolcenginePlatform struct{}
+// Volcengine implements CloudPlatform for Volcengine.
+type Volcengine struct{}
+
+// Detect probes the Volcengine metadata endpoint.
+func Detect(ctx context.Context) bool {
+	client := &http.Client{Timeout: metadataTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataBase+"/instance-id", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
 
 // Name returns the platform identifier.
-func (v *VolcenginePlatform) Name() string { return "volcengine" }
+func (v *Volcengine) Name() string { return "volcengine" }
 
-// ProvisionNetwork provisions Volcengine networking:
-//  1. Detect/create VM subnet.
-//  2. Create ENIs in the subnet.
-//  3. Attach ENIs to the instance.
-//  4. Assign secondary IPs (20 per ENI).
-//  5. Bring up ethX interfaces.
-//  6. Return secondary IPs.
-func (v *VolcenginePlatform) ProvisionNetwork(ctx context.Context, cfg *Config) (*NetworkResult, error) {
-	logger := log.WithFunc("platform.volcengine.ProvisionNetwork")
+// ProvisionNetwork provisions Volcengine networking resources.
+func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
+	logger := log.WithFunc("volcengine.ProvisionNetwork")
 
 	primaryNIC := cfg.PrimaryNIC
 	if primaryNIC == "" {
-		primaryNIC = vePrimaryNICName
+		primaryNIC = defaultNIC
 	}
 
-	// Set credentials from config file / env.
-	if err := veSetupEnv(ctx); err != nil {
+	if err := setupEnv(); err != nil {
 		return nil, fmt.Errorf("setup volcengine credentials: %w", err)
 	}
 
-	vpcID, err := veGetVPCID(ctx)
+	vpcID, err := fetchMeta(ctx, "/vpc-id")
 	if err != nil {
 		return nil, fmt.Errorf("get vpc id: %w", err)
 	}
 
-	sgID, err := veGetSecurityGroupID(ctx, vpcID)
+	sgID, err := getSecurityGroupID(ctx, vpcID)
 	if err != nil {
 		return nil, fmt.Errorf("get security group id: %w", err)
 	}
 
-	// Ensure VM subnet exists.
-	subnetID, err := veEnsureSubnet(ctx, vpcID, cfg.SubnetCIDR, cfg.NodeName)
+	subnetID, err := ensureSubnet(ctx, vpcID, cfg.SubnetCIDR, cfg.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("ensure subnet: %w", err)
 	}
 	logger.Infof(ctx, "subnet %s (id=%s)", cfg.SubnetCIDR, subnetID)
 
-	instanceID, err := veGetInstanceID(ctx)
+	instanceID, err := fetchMeta(ctx, "/instance-id")
 	if err != nil {
 		return nil, fmt.Errorf("get instance id: %w", err)
 	}
 	logger.Infof(ctx, "instance id: %s", instanceID)
 
-	// Create ENIs and collect secondary IPs.
-	eniIDs, err := veCreateAndAttachENIs(ctx, subnetID, sgID, instanceID, cfg.NodeName, veENIsPerNode)
+	eniIDs, err := createAndAttachENIs(ctx, subnetID, sgID, instanceID, cfg.NodeName, enisPerNode)
 	if err != nil {
 		return nil, fmt.Errorf("create/attach ENIs: %w", err)
 	}
@@ -77,9 +100,9 @@ func (v *VolcenginePlatform) ProvisionNetwork(ctx context.Context, cfg *Config) 
 
 	var allIPs []string
 	for _, eniID := range eniIDs {
-		ips, err := veAssignSecondaryIPs(ctx, eniID, veIPsPerENI)
-		if err != nil {
-			logger.Warnf(ctx, "assign secondary IPs to %s: %v", eniID, err)
+		ips, assignErr := assignSecondaryIPs(ctx, eniID, ipsPerENI)
+		if assignErr != nil {
+			logger.Warnf(ctx, "assign secondary IPs to %s: %v", eniID, assignErr)
 			continue
 		}
 		allIPs = append(allIPs, ips...)
@@ -87,30 +110,29 @@ func (v *VolcenginePlatform) ProvisionNetwork(ctx context.Context, cfg *Config) 
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
 	// Bring up secondary interfaces.
-	for i := 1; i <= veENIsPerNode; i++ {
+	for i := 1; i <= enisPerNode; i++ {
 		iface := fmt.Sprintf("eth%d", i)
-		//nolint:gosec // ip args from trusted NIC name
+		//nolint:gosec // iface from trusted integer
 		cmd := exec.CommandContext(ctx, "ip", "link", "set", iface, "up")
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			logger.Warnf(ctx, "bring up %s: %v: %s", iface, err, out)
+		out, linkErr := cmd.CombinedOutput()
+		if linkErr != nil {
+			logger.Warnf(ctx, "bring up %s: %v: %s", iface, linkErr, out)
 		}
 	}
 
 	gateway := cfg.Gateway
 	if gateway == "" {
-		var err error
-		gateway, err = firstHostIP(cfg.SubnetCIDR)
+		gateway, err = platform.FirstHostIP(cfg.SubnetCIDR)
 		if err != nil {
 			return nil, fmt.Errorf("compute gateway: %w", err)
 		}
 	}
 
-	sort.Slice(allIPs, func(i, j int) bool {
-		return ipLess(allIPs[i], allIPs[j])
+	slices.SortFunc(allIPs, func(a, b string) int {
+		return bytes.Compare(net.ParseIP(a).To4(), net.ParseIP(b).To4())
 	})
 
-	return &NetworkResult{
+	return &platform.NetworkResult{
 		Platform:   v.Name(),
 		SubnetCIDR: cfg.SubnetCIDR,
 		Gateway:    gateway,
@@ -120,22 +142,22 @@ func (v *VolcenginePlatform) ProvisionNetwork(ctx context.Context, cfg *Config) 
 }
 
 // Status returns the current ENI and IP status.
-func (v *VolcenginePlatform) Status(ctx context.Context) (*PoolStatus, error) {
-	logger := log.WithFunc("platform.volcengine.Status")
+func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
+	logger := log.WithFunc("volcengine.Status")
 
-	if err := veSetupEnv(ctx); err != nil {
+	if err := setupEnv(); err != nil {
 		return nil, fmt.Errorf("setup credentials: %w", err)
 	}
 
-	instanceID, err := veGetInstanceID(ctx)
+	instanceID, err := fetchMeta(ctx, "/instance-id")
 	if err != nil {
 		return nil, fmt.Errorf("get instance id: %w", err)
 	}
 
-	enis, err := veListENIs(ctx, instanceID)
+	enis, err := listENIs(ctx, instanceID)
 	if err != nil {
 		logger.Warnf(ctx, "list ENIs: %v", err)
-		return &PoolStatus{}, nil
+		return &platform.PoolStatus{}, nil
 	}
 
 	var eniIDs, ips []string
@@ -148,52 +170,48 @@ func (v *VolcenginePlatform) Status(ctx context.Context) (*PoolStatus, error) {
 		}
 	}
 
-	return &PoolStatus{
+	return &platform.PoolStatus{
 		ENIIDs: eniIDs,
 		IPs:    ips,
 	}, nil
 }
 
 // Teardown detaches and deletes all secondary ENIs for this instance.
-func (v *VolcenginePlatform) Teardown(ctx context.Context) error {
-	logger := log.WithFunc("platform.volcengine.Teardown")
+func (v *Volcengine) Teardown(ctx context.Context) error {
+	logger := log.WithFunc("volcengine.Teardown")
 
-	if err := veSetupEnv(ctx); err != nil {
+	if err := setupEnv(); err != nil {
 		return fmt.Errorf("setup credentials: %w", err)
 	}
 
-	instanceID, err := veGetInstanceID(ctx)
+	instanceID, err := fetchMeta(ctx, "/instance-id")
 	if err != nil {
 		return fmt.Errorf("get instance id: %w", err)
 	}
 
-	enis, err := veListENIs(ctx, instanceID)
+	enis, err := listENIs(ctx, instanceID)
 	if err != nil {
 		return fmt.Errorf("list ENIs: %w", err)
 	}
 
 	for _, eni := range enis {
-		if eni.Type == "primary" {
+		if eni.Type == eniTypePrimary {
 			continue
 		}
 
-		//nolint:gosec // ve args from trusted ENI metadata
-		detachCmd := exec.CommandContext(ctx, "ve", "vpc", "DetachNetworkInterface",
+		_, detachErr := veRun(ctx, "vpc", "DetachNetworkInterface",
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 			"--InstanceId", instanceID,
 		)
-		out, err := detachCmd.CombinedOutput()
-		if err != nil {
-			logger.Warnf(ctx, "detach ENI %s: %v: %s", eni.NetworkInterfaceID, err, out)
+		if detachErr != nil {
+			logger.Warnf(ctx, "detach ENI %s: %v", eni.NetworkInterfaceID, detachErr)
 		}
 
-		//nolint:gosec // ve args from trusted ENI metadata
-		delCmd := exec.CommandContext(ctx, "ve", "vpc", "DeleteNetworkInterface",
+		_, delErr := veRun(ctx, "vpc", "DeleteNetworkInterface",
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 		)
-		out, err = delCmd.CombinedOutput()
-		if err != nil {
-			logger.Warnf(ctx, "delete ENI %s: %v: %s", eni.NetworkInterfaceID, err, out)
+		if delErr != nil {
+			logger.Warnf(ctx, "delete ENI %s: %v", eni.NetworkInterfaceID, delErr)
 		} else {
 			logger.Infof(ctx, "deleted ENI %s", eni.NetworkInterfaceID)
 		}
@@ -201,9 +219,9 @@ func (v *VolcenginePlatform) Teardown(ctx context.Context) error {
 	return nil
 }
 
-// --- Volcengine API helpers via `ve` CLI ---
+// --- Volcengine API helpers ---
 
-type veNetworkInterface struct {
+type networkInterface struct {
 	NetworkInterfaceID string `json:"NetworkInterfaceId"`
 	Type               string `json:"Type"`
 	PrivateIPSets      struct {
@@ -214,8 +232,31 @@ type veNetworkInterface struct {
 	} `json:"PrivateIpSets"`
 }
 
+// fetchMeta fetches a value from the Volcengine instance metadata service.
+func fetchMeta(ctx context.Context, path string) (string, error) {
+	client := &http.Client{Timeout: metadataTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataBase+path, nil)
+	if err != nil {
+		return "", fmt.Errorf("create request for %s: %w", path, err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("fetch %s: %w", path, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", path, err)
+	}
+	val := strings.TrimSpace(string(b))
+	if val == "" {
+		return "", fmt.Errorf("%s returned empty", path)
+	}
+	return val, nil
+}
+
 func veRun(ctx context.Context, args ...string) ([]byte, error) {
-	//nolint:gosec // args come from internal constants and metadata, not user input
+	//nolint:gosec // args from internal constants and metadata
 	cmd := exec.CommandContext(ctx, "ve", args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -224,35 +265,7 @@ func veRun(ctx context.Context, args ...string) ([]byte, error) {
 	return out, nil
 }
 
-func veGetInstanceID(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "bash", "-c",
-		`curl -sf http://100.96.0.96/latest/meta-data/instance-id`,
-	).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("fetch instance-id metadata: %w: %s", err, out)
-	}
-	id := strings.TrimSpace(string(out))
-	if id == "" {
-		return "", fmt.Errorf("instance-id metadata returned empty")
-	}
-	return id, nil
-}
-
-func veGetVPCID(ctx context.Context) (string, error) {
-	out, err := exec.CommandContext(ctx, "bash", "-c",
-		`curl -sf http://100.96.0.96/latest/meta-data/vpc-id`,
-	).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("fetch vpc-id metadata: %w: %s", err, out)
-	}
-	id := strings.TrimSpace(string(out))
-	if id == "" {
-		return "", fmt.Errorf("vpc-id metadata returned empty")
-	}
-	return id, nil
-}
-
-func veGetSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
+func getSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
 	out, err := veRun(ctx, "vpc", "DescribeSecurityGroups",
 		"--VpcId", vpcID, "--PageSize", "1",
 	)
@@ -275,8 +288,7 @@ func veGetSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
 	return resp.Result.SecurityGroups[0].SecurityGroupID, nil
 }
 
-func veEnsureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error) {
-	// Check for existing subnet.
+func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error) {
 	out, err := veRun(ctx, "vpc", "DescribeSubnets",
 		"--VpcId", vpcID, "--PageSize", "100",
 	)
@@ -298,16 +310,11 @@ func veEnsureSubnet(ctx context.Context, vpcID, cidr, name string) (string, erro
 		}
 	}
 
-	// Get zone from metadata.
-	zoneOut, err := exec.CommandContext(ctx, "bash", "-c",
-		`curl -sf http://100.96.0.96/latest/meta-data/placement/availability-zone`,
-	).CombinedOutput()
+	zone, err := fetchMeta(ctx, "/placement/availability-zone")
 	if err != nil {
-		return "", fmt.Errorf("fetch zone metadata: %w", err)
+		return "", fmt.Errorf("fetch zone: %w", err)
 	}
-	zone := strings.TrimSpace(string(zoneOut))
 
-	// Create subnet.
 	createOut, err := veRun(ctx, "vpc", "CreateSubnet",
 		"--VpcId", vpcID,
 		"--CidrBlock", cidr,
@@ -328,8 +335,8 @@ func veEnsureSubnet(ctx context.Context, vpcID, cidr, name string) (string, erro
 	return resp.Result.SubnetID, nil
 }
 
-func veCreateAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, count int) ([]string, error) {
-	logger := log.WithFunc("platform.volcengine.veCreateAndAttachENIs")
+func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, count int) ([]string, error) {
+	logger := log.WithFunc("volcengine.createAndAttachENIs")
 	var eniIDs []string
 
 	for i := 1; i <= count; i++ {
@@ -351,18 +358,17 @@ func veCreateAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, pref
 		}
 		eniID := resp.Result.NetworkInterfaceID
 
-		// Attach to instance.
-		//nolint:gosec // sleep is needed for API propagation
-		_ = exec.CommandContext(ctx, "sleep", "2").Run()
-		_, err = veRun(ctx, "vpc", "AttachNetworkInterface",
+		time.Sleep(createPropagationDelay)
+
+		_, attachErr := veRun(ctx, "vpc", "AttachNetworkInterface",
 			"--NetworkInterfaceId", eniID,
 			"--InstanceId", instanceID,
 		)
-		if err != nil {
-			logger.Warnf(ctx, "attach ENI %s: %v", eniID, err)
+		if attachErr != nil {
+			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
 		}
-		//nolint:gosec // sleep is needed for API propagation
-		_ = exec.CommandContext(ctx, "sleep", "4").Run()
+
+		time.Sleep(attachPropagationDelay)
 
 		eniIDs = append(eniIDs, eniID)
 		logger.Infof(ctx, "created and attached ENI %s (%d/%d)", eniID, i, count)
@@ -370,7 +376,7 @@ func veCreateAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, pref
 	return eniIDs, nil
 }
 
-func veAssignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
+func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
 	out, err := veRun(ctx, "vpc", "AssignPrivateIpAddresses",
 		"--NetworkInterfaceId", eniID,
 		"--SecondaryPrivateIpAddressCount", fmt.Sprintf("%d", count),
@@ -390,7 +396,7 @@ func veAssignSecondaryIPs(ctx context.Context, eniID string, count int) ([]strin
 	return resp.Result.PrivateIPSet, nil
 }
 
-func veListENIs(ctx context.Context, instanceID string) ([]veNetworkInterface, error) {
+func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error) {
 	out, err := veRun(ctx, "vpc", "DescribeNetworkInterfaces",
 		"--InstanceId", instanceID,
 		"--PageSize", "100",
@@ -400,7 +406,7 @@ func veListENIs(ctx context.Context, instanceID string) ([]veNetworkInterface, e
 	}
 	var resp struct {
 		Result struct {
-			NetworkInterfaceSets []veNetworkInterface `json:"NetworkInterfaceSets"`
+			NetworkInterfaceSets []networkInterface `json:"NetworkInterfaceSets"`
 		} `json:"Result"`
 	}
 	if err := json.Unmarshal(out, &resp); err != nil {
@@ -409,22 +415,20 @@ func veListENIs(ctx context.Context, instanceID string) ([]veNetworkInterface, e
 	return resp.Result.NetworkInterfaceSets, nil
 }
 
-// veSetupEnv reads Volcengine credentials from config file or env vars.
-func veSetupEnv(_ context.Context) error {
-	// If already set via environment, trust them.
+// setupEnv reads Volcengine credentials from config file or env vars.
+func setupEnv() error {
 	if os.Getenv("VOLCENGINE_ACCESS_KEY_ID") != "" {
 		return nil
 	}
 
-	// Try ~/.volcengine/config.json
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil //nolint // best-effort
+		return nil
 	}
 	cfgPath := filepath.Join(home, ".volcengine", "config.json")
 	data, err := os.ReadFile(cfgPath) //nolint:gosec // standard config file path
 	if err != nil {
-		return nil //nolint // not found — rely on env
+		return nil
 	}
 
 	var cfg struct {
@@ -443,22 +447,4 @@ func veSetupEnv(_ context.Context) error {
 		_ = os.Setenv("VOLCENGINE_REGION", cfg.Region)
 	}
 	return nil
-}
-
-// ipLess compares two IPv4 address strings numerically.
-func ipLess(a, b string) bool {
-	pa := strings.Split(a, ".")
-	pb := strings.Split(b, ".")
-	for i := range pa {
-		if i >= len(pb) {
-			return false
-		}
-		if pa[i] < pb[i] {
-			return true
-		}
-		if pa[i] > pb[i] {
-			return false
-		}
-	}
-	return false
 }
