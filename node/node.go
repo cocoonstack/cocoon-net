@@ -36,6 +36,15 @@ type Config struct {
 	IPs        []string
 	DNSServers []string
 	PrimaryNIC string
+
+	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules. Set this
+	// when adopting an existing manually-provisioned node whose firewall rules
+	// were tuned by hand and where cocoon-net's MASQUERADE would change the
+	// outbound source IP visible to peers (e.g. GKE alias-IP routing already
+	// makes per-VM source IPs reachable via the host NIC, and a blanket
+	// MASQUERADE rewrite would mask them as the host's own IP). Other steps
+	// (sysctl, bridge, routes, dnsmasq, CNI conflist) still run.
+	SkipIPTables bool
 }
 
 // Setup configures all node networking components in order:
@@ -67,8 +76,10 @@ func Setup(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("routes: %w", err)
 	}
 
-	// 4. iptables.
-	if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
+	// 4. iptables (skipped on adopt-mode hosts whose firewall is hand-managed).
+	if cfg.SkipIPTables {
+		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
