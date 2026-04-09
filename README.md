@@ -9,6 +9,8 @@ VPC-native networking setup for [Cocoon](https://github.com/cocoonstack/cocoon) 
 - **Host networking** -- cni0 bridge, dnsmasq DHCP, /32 host routes, iptables FORWARD + NAT
 - **CNI integration** -- generates conflist for Kubernetes pod networking
 - **State management** -- persists pool state to `/var/lib/cocoon/net/pool.json`
+- **Adopt mode** -- bring existing hand-provisioned nodes under management without cloud API calls
+- **Idempotent re-runs** -- skips config writes and service restarts when nothing changed
 - **Dry-run mode** -- preview all changes before applying
 
 ### Supported platforms
@@ -59,14 +61,21 @@ make build          # produces ./cocoon-net
 | Flag | Default | Description |
 |---|---|---|
 | `--platform` | auto-detect | Force platform (`gke` or `volcengine`) |
-| `--node-name` | (required for init) | Virtual node name (e.g. `cocoon-pool`) |
-| `--subnet` | (required for init) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
-| `--pool-size` | `140` | Number of IPs to provision |
+| `--node-name` | (required) | Virtual node name (e.g. `cocoon-pool`) |
+| `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
+| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
 | `--primary-nic` | auto-detect | Host primary NIC (`ens4` on GKE, `eth0` on Volcengine) |
 | `--dns` | `8.8.8.8,1.1.1.1` | Comma-separated DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
 | `--dry-run` | `false` | Show what would be done, without making changes |
+| `--manage-iptables` | `false` | (adopt only) Let cocoon-net write FORWARD + NAT rules |
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `COCOON_NET_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
 
 ### Credentials
 
@@ -125,6 +134,27 @@ Dry run (show what would be done):
 sudo cocoon-net init --node-name cocoon-pool --subnet 172.20.100.0/24 --dry-run
 ```
 
+### adopt — bring an existing node under cocoon-net management
+
+For nodes whose cloud networking (alias IP range or secondary ENIs) was already provisioned by hand, `adopt` runs only the host-side configuration (bridge, sysctl, routes, dnsmasq, CNI conflist) and writes the pool state file — without calling any cloud APIs.
+
+```bash
+sudo cocoon-net adopt \
+  --node-name cocoon-pool \
+  --subnet 172.20.0.0/24
+```
+
+By default, adopt preserves the host's existing iptables rules. Opt in to let cocoon-net manage them:
+
+```bash
+sudo cocoon-net adopt \
+  --node-name cocoon-pool \
+  --subnet 172.20.0.0/24 \
+  --manage-iptables
+```
+
+Cloud-side teardown must be done manually on adopted nodes — cocoon-net will not undo what it did not provision.
+
 ### status — show pool state
 
 ```bash
@@ -152,7 +182,7 @@ sudo cocoon-net teardown
 
 ### CNI integration
 
-`cocoon-net init` generates `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`:
+Both `init` and `adopt` generate `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`:
 
 ```json
 {
@@ -186,7 +216,7 @@ spec:
 ```bash
 make build          # build binary
 make test           # run tests with coverage
-make lint           # run golangci-lint
+make lint           # run golangci-lint (linux + darwin)
 make fmt            # format code with gofumpt and goimports
 make deps           # tidy modules
 make clean          # remove artifacts

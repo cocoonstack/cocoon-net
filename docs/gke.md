@@ -58,6 +58,20 @@ This will:
 6. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
 7. Save pool state to `/var/lib/cocoon/net/pool.json`
 
+## Adopting existing nodes
+
+For GKE nodes that were already provisioned by hand (alias IP range assigned, bridge configured), use `adopt` to bring them under cocoon-net management without calling any cloud APIs:
+
+```bash
+sudo cocoon-net adopt \
+  --node-name cocoon-pool \
+  --subnet 172.20.100.0/24
+```
+
+This configures dnsmasq, CNI conflist, bridge, routes, and sysctl from cocoon-net's templates, and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+
+After adopting, `cocoon-net status` and future re-runs of `adopt` work normally. Cloud-side teardown (removing the alias range) must still be done manually.
+
 ## Manual Steps (for reference)
 
 ### 1. Add secondary IP range to subnet

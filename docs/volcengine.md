@@ -89,6 +89,20 @@ This will:
 7. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
 8. Save pool state to `/var/lib/cocoon/net/pool.json`
 
+## Adopting existing nodes
+
+For EBM nodes that already have secondary ENIs and IPs provisioned by hand, use `adopt` to bring them under cocoon-net management without calling any Volcengine APIs:
+
+```bash
+sudo cocoon-net adopt \
+  --node-name cocoon-pool \
+  --subnet 172.20.100.0/24
+```
+
+This configures dnsmasq, CNI conflist, bridge, routes, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+
+After adopting, `cocoon-net status` works normally. Cloud-side teardown (detaching/deleting ENIs) must still be done manually.
+
 ## Manual Steps (for reference)
 
 ### 1. Create VM subnet (once per VPC)
@@ -273,6 +287,8 @@ ve vpc AuthorizeSecurityGroupIngress \
 
 ## Adding More Nodes
 
+For new nodes:
+
 1. Create a new /24 subnet: `172.20.N.0/24`
 2. Run on the new node:
    ```bash
@@ -282,3 +298,11 @@ ve vpc AuthorizeSecurityGroupIngress \
      --pool-size 140
    ```
 3. No VPC route changes needed — subnet creation auto-adds the route.
+
+For existing hand-provisioned nodes, use `adopt` instead of `init`:
+
+```bash
+sudo cocoon-net adopt \
+  --node-name cocoon-pool-N \
+  --subnet 172.20.N.0/24
+```
