@@ -3,12 +3,15 @@ package node
 import (
 	"context"
 	"fmt"
-	"os/exec"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/projecteru2/core/log"
 )
 
-// setupSysctl applies kernel parameters required for VPC-native VM networking.
+const procSysBase = "/proc/sys"
+
 func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string) error {
 	logger := log.WithFunc("node.setupSysctl")
 
@@ -26,12 +29,9 @@ func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string)
 	}
 
 	for key, val := range settings {
-		param := fmt.Sprintf("%s=%s", key, val)
-		//nolint:gosec // sysctl args from trusted config
-		cmd := exec.CommandContext(ctx, "sysctl", "-w", param)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("sysctl %s: %w: %s", param, err, out)
+		path := filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/"))
+		if err := os.WriteFile(path, []byte(val), 0o644); err != nil { //nolint:gosec // sysctl tuning
+			return fmt.Errorf("write sysctl %s=%s: %w", key, val, err)
 		}
 	}
 	logger.Info(ctx, "sysctl parameters applied")
