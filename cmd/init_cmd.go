@@ -12,20 +12,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
-const defaultStateDir = "/var/lib/cocoon/net"
-
-var (
-	flagPlatform   string
-	flagNodeName   string
-	flagSubnet     string
-	flagPoolSize   int
-	flagGateway    string
-	flagPrimaryNIC string
-	flagDNS        string
-	flagStateDir   string
-	flagDryRun     bool
-)
-
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -33,18 +19,7 @@ func newInitCmd() *cobra.Command {
 		RunE:  runInit,
 	}
 
-	cmd.Flags().StringVar(&flagPlatform, "platform", "", "force platform (gke|volcengine); auto-detect if not set")
-	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
-	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
-	cmd.Flags().IntVar(&flagPoolSize, "pool-size", 140, "number of IPs to provision")
-	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
-	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (auto-detect if not set)")
-	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
-	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
-	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
-
-	_ = cmd.MarkFlagRequired("node-name")
-	_ = cmd.MarkFlagRequired("subnet")
+	registerCommonFlags(cmd, 140)
 
 	return cmd
 }
@@ -53,10 +28,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runInit")
 
-	dnsServers := strings.Split(flagDNS, ",")
-	for i := range dnsServers {
-		dnsServers[i] = strings.TrimSpace(dnsServers[i])
-	}
+	dnsServers := splitTrim(flagDNS, ",")
 
 	cfg := &platform.Config{
 		NodeName:   flagNodeName,

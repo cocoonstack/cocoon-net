@@ -57,38 +57,31 @@ type Config struct {
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
-	// Detect secondary NICs (eth1..eth7 that are present).
 	secondaryNICs := detectSecondaryNICs()
 	logger.Infof(ctx, "detected secondary NICs: %v", secondaryNICs)
 
-	// 1. sysctl.
 	if err := setupSysctl(ctx, cfg.PrimaryNIC, secondaryNICs); err != nil {
 		return fmt.Errorf("sysctl: %w", err)
 	}
 
-	// 2. cni0 bridge.
 	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	// 3. Host routes.
 	if err := setupRoutes(ctx, cfg.IPs); err != nil {
 		return fmt.Errorf("routes: %w", err)
 	}
 
-	// 4. iptables (skipped on adopt-mode hosts whose firewall is hand-managed).
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
 	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
-	// 5. dnsmasq.
-	if err := setupDNSMasq(ctx, cfg.Gateway, cfg.SubnetCIDR, cfg.IPs, cfg.DNSServers, cfg.PrimaryNIC); err != nil {
+	if err := setupDNSMasq(ctx, cfg); err != nil {
 		return fmt.Errorf("dnsmasq: %w", err)
 	}
 
-	// 6. CNI conflist.
 	if err := writeCNIConflist(ctx); err != nil {
 		return fmt.Errorf("cni conflist: %w", err)
 	}
@@ -97,7 +90,7 @@ func Setup(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-// writeCNIConflist writes the dnsmasq-dhcp CNI conflist.
+// writeCNIConflist writes the dnsmasq-dhcp CNI conflist if content has changed.
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 
@@ -105,6 +98,12 @@ func writeCNIConflist(ctx context.Context) error {
 		return fmt.Errorf("create cni conf dir: %w", err)
 	}
 	confPath := filepath.Join(cniConfDir, cniConfFile)
+
+	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == cniConfContent { //nolint:gosec // known path
+		logger.Info(ctx, "CNI conflist unchanged, skipping write")
+		return nil
+	}
+
 	if err := os.WriteFile(confPath, []byte(cniConfContent), 0o644); err != nil { //nolint:gosec // readable config
 		return fmt.Errorf("write cni conflist: %w", err)
 	}

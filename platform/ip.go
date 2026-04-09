@@ -1,9 +1,32 @@
 package platform
 
 import (
+	"cmp"
 	"fmt"
 	"net"
+	"slices"
 )
+
+// IP4ToUint32 converts an IPv4 string to its uint32 representation.
+func IP4ToUint32(s string) uint32 {
+	ip := net.ParseIP(s).To4()
+	if ip == nil {
+		return 0
+	}
+	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3])
+}
+
+// Uint32ToIP4 converts a uint32 to a dotted-decimal IPv4 string.
+func Uint32ToIP4(n uint32) string {
+	return fmt.Sprintf("%d.%d.%d.%d", n>>24, (n>>16)&0xFF, (n>>8)&0xFF, n&0xFF)
+}
+
+// SortIPs sorts IPv4 address strings numerically in place.
+func SortIPs(ips []string) {
+	slices.SortFunc(ips, func(a, b string) int {
+		return cmp.Compare(IP4ToUint32(a), IP4ToUint32(b))
+	})
+}
 
 // FirstHostIP returns the first usable host IP in the CIDR (typically used as gateway).
 func FirstHostIP(cidr string) (string, error) {
@@ -27,7 +50,7 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	}
 	gwIP := net.ParseIP(gateway).To4()
 
-	var ips []string
+	ips := make([]string, 0, count)
 	for ip := ip4Add(ipNet.IP.To4(), 1); ipNet.Contains(ip) && len(ips) < count; ip = ip4Add(ip, 1) {
 		if ip.Equal(gwIP) {
 			continue
@@ -35,6 +58,16 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 		ips = append(ips, ip.String())
 	}
 	return ips, nil
+}
+
+// CIDRMask returns the network address and dotted-decimal mask for a CIDR.
+func CIDRMask(cidr string) (network, mask string, err error) {
+	_, ipNet, parseErr := net.ParseCIDR(cidr)
+	if parseErr != nil {
+		return "", "", fmt.Errorf("parse cidr %s: %w", cidr, parseErr)
+	}
+	m := ipNet.Mask
+	return ipNet.IP.String(), fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3]), nil
 }
 
 // ip4Add adds n to an IPv4 address.

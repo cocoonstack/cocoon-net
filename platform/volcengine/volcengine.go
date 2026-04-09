@@ -1,18 +1,16 @@
 package volcengine
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/projecteru2/core/log"
@@ -55,7 +53,7 @@ func Detect(ctx context.Context) bool {
 }
 
 // Name returns the platform identifier.
-func (v *Volcengine) Name() string { return "volcengine" }
+func (v *Volcengine) Name() string { return platform.PlatformVolcengine }
 
 // ProvisionNetwork provisions Volcengine networking resources.
 func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
@@ -107,6 +105,9 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		}
 		allIPs = append(allIPs, ips...)
 	}
+	if len(allIPs) == 0 {
+		return nil, fmt.Errorf("no secondary IPs assigned across %d ENIs", len(eniIDs))
+	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
 	// Bring up secondary interfaces.
@@ -128,9 +129,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		}
 	}
 
-	slices.SortFunc(allIPs, func(a, b string) int {
-		return bytes.Compare(net.ParseIP(a).To4(), net.ParseIP(b).To4())
-	})
+	platform.SortIPs(allIPs)
 
 	return &platform.NetworkResult{
 		Platform:   v.Name(),
@@ -204,8 +203,12 @@ func (v *Volcengine) Teardown(ctx context.Context) error {
 			"--InstanceId", instanceID,
 		)
 		if detachErr != nil {
-			logger.Warnf(ctx, "detach ENI %s: %v", eni.NetworkInterfaceID, detachErr)
+			logger.Warnf(ctx, "detach ENI %s: %v (skipping delete)", eni.NetworkInterfaceID, detachErr)
+			continue
 		}
+
+		// Wait for detach to propagate before deleting.
+		time.Sleep(attachPropagationDelay)
 
 		_, delErr := veRun(ctx, "vpc", "DeleteNetworkInterface",
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
@@ -292,21 +295,23 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error)
 	out, err := veRun(ctx, "vpc", "DescribeSubnets",
 		"--VpcId", vpcID, "--PageSize", "100",
 	)
-	if err == nil {
-		var resp struct {
-			Result struct {
-				Subnets []struct {
-					SubnetID  string `json:"SubnetId"`
-					CIDRBlock string `json:"CidrBlock"`
-				} `json:"Subnets"`
-			} `json:"Result"`
-		}
-		if json.Unmarshal(out, &resp) == nil {
-			for _, s := range resp.Result.Subnets {
-				if s.CIDRBlock == cidr {
-					return s.SubnetID, nil
-				}
-			}
+	if err != nil {
+		return "", fmt.Errorf("describe subnets: %w", err)
+	}
+	var listResp struct {
+		Result struct {
+			Subnets []struct {
+				SubnetID  string `json:"SubnetId"`
+				CIDRBlock string `json:"CidrBlock"`
+			} `json:"Subnets"`
+		} `json:"Result"`
+	}
+	if unmarshalErr := json.Unmarshal(out, &listResp); unmarshalErr != nil {
+		return "", fmt.Errorf("parse describe subnets: %w", unmarshalErr)
+	}
+	for _, s := range listResp.Result.Subnets {
+		if s.CIDRBlock == cidr {
+			return s.SubnetID, nil
 		}
 	}
 
@@ -415,20 +420,33 @@ func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error
 	return resp.Result.NetworkInterfaceSets, nil
 }
 
+var (
+	envOnce sync.Once
+	envErr  error
+)
+
 // setupEnv reads Volcengine credentials from config file or env vars.
+// It is safe to call multiple times; the actual work runs at most once.
 func setupEnv() error {
+	envOnce.Do(func() {
+		envErr = loadEnv()
+	})
+	return envErr
+}
+
+func loadEnv() error {
 	if os.Getenv("VOLCENGINE_ACCESS_KEY_ID") != "" {
 		return nil
 	}
 
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // no home dir means no config file to read
 	}
 	cfgPath := filepath.Join(home, ".volcengine", "config.json")
 	data, err := os.ReadFile(cfgPath) //nolint:gosec // standard config file path
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // missing config file is not an error; ve CLI will use its own defaults
 	}
 
 	var cfg struct {

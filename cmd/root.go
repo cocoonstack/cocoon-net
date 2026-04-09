@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
+	"github.com/projecteru2/core/log"
+	coretypes "github.com/projecteru2/core/types"
 	"github.com/spf13/cobra"
 
 	"github.com/cocoonstack/cocoon-net/platform"
@@ -14,6 +17,8 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform/volcengine"
 	"github.com/cocoonstack/cocoon-net/version"
 )
+
+const logLevelEnv = "COCOON_NET_LOG_LEVEL"
 
 // NewRootCmd creates and returns the root cobra command with all subcommands registered.
 func NewRootCmd() *cobra.Command {
@@ -40,7 +45,17 @@ func Execute() {
 }
 
 func run() int {
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	ctx := context.Background()
+
+	logLevel := os.Getenv(logLevelEnv)
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	if err := log.SetupLog(ctx, &coretypes.ServerLogConfig{Level: logLevel}, ""); err != nil {
+		log.WithFunc("main").Fatalf(ctx, err, "setup log: %v", err)
+	}
+
+	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	if err := NewRootCmd().ExecuteContext(ctx); err != nil {
@@ -52,22 +67,47 @@ func run() int {
 // newPlatform returns a CloudPlatform by name.
 func newPlatform(name string) (platform.CloudPlatform, error) {
 	switch name {
-	case "gke":
+	case platform.PlatformGKE:
 		return &gke.GKE{}, nil
-	case "volcengine":
+	case platform.PlatformVolcengine:
 		return &volcengine.Volcengine{}, nil
 	default:
-		return nil, fmt.Errorf("unknown platform: %s (valid: gke, volcengine)", name)
+		return nil, fmt.Errorf("unknown platform: %s (valid: %s, %s)", name, platform.PlatformGKE, platform.PlatformVolcengine)
 	}
 }
 
-// detectPlatform auto-detects the cloud platform by probing metadata endpoints.
+// detectPlatform auto-detects the cloud platform by probing metadata endpoints concurrently.
 func detectPlatform(ctx context.Context) (platform.CloudPlatform, error) {
-	if gke.Detect(ctx) {
-		return &gke.GKE{}, nil
+	type result struct {
+		plat platform.CloudPlatform
 	}
-	if volcengine.Detect(ctx) {
-		return &volcengine.Volcengine{}, nil
+	ch := make(chan result, 2)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		if gke.Detect(ctx) {
+			ch <- result{plat: &gke.GKE{}}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if volcengine.Detect(ctx) {
+			ch <- result{plat: &volcengine.Volcengine{}}
+		}
+	}()
+
+	// Close channel once both probes finish.
+	go func() {
+		wg.Wait()
+		close(ch)
+	}()
+
+	for r := range ch {
+		if r.plat != nil {
+			return r.plat, nil
+		}
 	}
-	return nil, fmt.Errorf("could not detect cloud platform — set --platform explicitly (gke|volcengine)")
+	return nil, fmt.Errorf("could not detect cloud platform — set --platform explicitly (%s|%s)", platform.PlatformGKE, platform.PlatformVolcengine)
 }

@@ -2,6 +2,21 @@ package platform
 
 import "context"
 
+const (
+	PlatformGKE        = "gke"
+	PlatformVolcengine = "volcengine"
+)
+
+// DefaultNIC returns the default primary NIC for a given platform.
+func DefaultNIC(platformName string) string {
+	switch platformName {
+	case PlatformVolcengine:
+		return "eth0"
+	default:
+		return "ens4"
+	}
+}
+
 // CloudPlatform is the interface implemented by each cloud provider.
 type CloudPlatform interface {
 	// Name returns the platform identifier ("gke", "volcengine").

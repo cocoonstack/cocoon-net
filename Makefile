@@ -1,4 +1,4 @@
-.PHONY: all build test lint vet fmt fmt-check deps clean coverage cloc help
+.PHONY: all build test lint lint-linux lint-darwin vet vet-linux vet-darwin fmt fmt-check deps clean coverage cloc help
 
 REPO_PATH := github.com/cocoonstack/cocoon-net
 BINARY_NAME := cocoon-net
@@ -76,11 +76,17 @@ coverage: test ## Generate and display coverage report
 
 # --- Code quality ---
 
-vet: ## Run go vet
-	go vet ./...
+vet: vet-linux vet-darwin ## Run go vet (linux + darwin)
+vet-linux:
+	GOOS=linux go vet ./...
+vet-darwin:
+	GOOS=darwin go vet ./...
 
-lint: golangci-lint ## Run golangci-lint
-	$(GOLANGCILINT) run ./...
+lint: lint-linux lint-darwin ## Run golangci-lint (linux + darwin)
+lint-linux: golangci-lint
+	GOOS=linux $(GOLANGCILINT) run ./...
+lint-darwin: golangci-lint
+	GOOS=darwin $(GOLANGCILINT) run ./...
 
 fmt: gofumpt goimports ## Format code with gofumpt and goimports
 	$(GOFMT) -l -w .

@@ -19,7 +19,9 @@ var _ platform.CloudPlatform = (*GKE)(nil)
 const (
 	metaBase       = "http://metadata.google.internal/computeMetadata/v1"
 	aliasRangeName = "cocoon-pods"
-	defaultNIC     = "ens4"
+
+	// DefaultNIC is the default primary NIC on GKE nodes.
+	DefaultNIC = "ens4"
 
 	detectionURL     = metaBase + "/instance/zone"
 	detectionTimeout = 2 * time.Second
@@ -47,7 +49,7 @@ func Detect(ctx context.Context) bool {
 }
 
 // Name returns the platform identifier.
-func (g *GKE) Name() string { return "gke" }
+func (g *GKE) Name() string { return platform.PlatformGKE }
 
 // ProvisionNetwork configures a GCE alias IP range for the node.
 func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
@@ -55,7 +57,7 @@ func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*plat
 
 	primaryNIC := cfg.PrimaryNIC
 	if primaryNIC == "" {
-		primaryNIC = defaultNIC
+		primaryNIC = DefaultNIC
 	}
 
 	instance, zone, project, subnet, err := fetchMetadata(ctx)
