@@ -1,0 +1,10 @@
+{
+  "platform": "volcengine",
+  "nodeName": "cocoon-pool",
+  "subnet": "172.20.100.0/24",
+  "gateway": "172.20.100.1",
+  "ips": ["172.20.100.2", "172.20.100.3"],
+  "eniIDs": ["eni-xxx"],
+  "subnetID": "subnet-xxx",
+  "updatedAt": "2026-04-04T06:00:00Z"
+}
