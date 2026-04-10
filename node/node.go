@@ -11,6 +11,8 @@ import (
 )
 
 const (
+	maxSecondaryNICs = 7
+
 	cniConfDir     = "/etc/cni/net.d"
 	cniConfFile    = "30-dnsmasq-dhcp.conflist"
 	cniConfContent = `{
@@ -31,11 +33,14 @@ const (
 
 // Config holds parameters for node setup.
 type Config struct {
+	// Networking config
 	Gateway    string
 	SubnetCIDR string
-	IPs        []string
 	DNSServers []string
 	PrimaryNIC string
+
+	// Resources
+	IPs []string
 
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules. Set this
 	// when adopting an existing manually-provisioned node whose firewall rules
@@ -111,10 +116,10 @@ func writeCNIConflist(ctx context.Context) error {
 	return nil
 }
 
-// detectSecondaryNICs returns the list of secondary NIC names (eth1..eth7) that exist.
+// detectSecondaryNICs returns the list of secondary NIC names (eth1..ethN) that exist.
 func detectSecondaryNICs() []string {
 	var nics []string
-	for i := 1; i <= 7; i++ {
+	for i := 1; i <= maxSecondaryNICs; i++ {
 		name := fmt.Sprintf("eth%d", i)
 		if _, err := net.InterfaceByName(name); err == nil {
 			nics = append(nics, name)

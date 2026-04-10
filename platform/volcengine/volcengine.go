@@ -36,22 +36,6 @@ const (
 // Volcengine implements CloudPlatform for Volcengine.
 type Volcengine struct{}
 
-// Detect probes the Volcengine metadata endpoint.
-func Detect(ctx context.Context) bool {
-	client := &http.Client{Timeout: metadataTimeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataBase+"/instance-id", nil)
-	if err != nil {
-		return false
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
 // Name returns the platform identifier.
 func (v *Volcengine) Name() string { return platform.PlatformVolcengine }
 
@@ -220,6 +204,22 @@ func (v *Volcengine) Teardown(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// Detect probes the Volcengine metadata endpoint.
+func Detect(ctx context.Context) bool {
+	client := &http.Client{Timeout: metadataTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataBase+"/instance-id", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // --- Volcengine API helpers ---

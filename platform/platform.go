@@ -44,8 +44,8 @@ type NetworkResult struct {
 	Platform   string
 	SubnetCIDR string
 	Gateway    string
-	IPs        []string
 	PrimaryNIC string
+	IPs        []string
 }
 
 // PoolStatus holds live status information from the cloud platform.

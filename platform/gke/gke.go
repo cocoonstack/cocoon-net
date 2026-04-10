@@ -31,23 +31,6 @@ const (
 // GKE implements CloudPlatform for Google Kubernetes Engine.
 type GKE struct{}
 
-// Detect probes the GCE metadata endpoint to determine if running on GKE.
-func Detect(ctx context.Context) bool {
-	client := &http.Client{Timeout: detectionTimeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, detectionURL, nil)
-	if err != nil {
-		return false
-	}
-	req.Header.Set("Metadata-Flavor", "Google")
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
 // Name returns the platform identifier.
 func (g *GKE) Name() string { return platform.PlatformGKE }
 
@@ -129,6 +112,23 @@ func (g *GKE) Teardown(ctx context.Context) error {
 	}
 	logger.Infof(ctx, "alias IP removed from %s", instance)
 	return nil
+}
+
+// Detect probes the GCE metadata endpoint to determine if running on GKE.
+func Detect(ctx context.Context) bool {
+	client := &http.Client{Timeout: detectionTimeout}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, detectionURL, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("Metadata-Flavor", "Google")
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
 }
 
 // fetchMetadata retrieves instance name, zone, project ID, and subnetwork name from GCE metadata.

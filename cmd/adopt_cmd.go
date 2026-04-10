@@ -27,8 +27,9 @@ secondary ENIs) already exists. cocoon-net will overwrite the dnsmasq
 config, CNI conflist, bridge, iptables, sysctl, and pool state file from
 its own templates while leaving the cloud-side allocation untouched.
 
-Use this on the simular cluster's cocoonset-node-* hosts, which were
-provisioned by hand before cocoon-net existed.
+Use this on hosts that were provisioned by hand (or by an older script)
+before cocoon-net existed, to bring them under cocoon-net management
+without calling any cloud APIs.
 
 Required flags:
   --node-name   the virtual node name (e.g. cocoon-pool, cocoon-pool-2)
