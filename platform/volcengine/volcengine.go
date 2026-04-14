@@ -18,7 +18,12 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-var _ platform.CloudPlatform = (*Volcengine)(nil)
+var (
+	_ platform.CloudPlatform = (*Volcengine)(nil)
+
+	envOnce sync.Once
+	envErr  error
+)
 
 const (
 	metadataBase = "http://100.96.0.96/latest/meta-data"
@@ -115,12 +120,18 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 
 	platform.SortIPs(allIPs)
 
+	var secondaryNICs []string
+	for i := 1; i <= enisPerNode; i++ {
+		secondaryNICs = append(secondaryNICs, fmt.Sprintf("eth%d", i))
+	}
+
 	return &platform.NetworkResult{
-		Platform:   v.Name(),
-		SubnetCIDR: cfg.SubnetCIDR,
-		Gateway:    gateway,
-		IPs:        allIPs,
-		PrimaryNIC: primaryNIC,
+		Platform:      v.Name(),
+		SubnetCIDR:    cfg.SubnetCIDR,
+		Gateway:       gateway,
+		PrimaryNIC:    primaryNIC,
+		SecondaryNICs: secondaryNICs,
+		IPs:           allIPs,
 	}, nil
 }
 
@@ -419,11 +430,6 @@ func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error
 	}
 	return resp.Result.NetworkInterfaceSets, nil
 }
-
-var (
-	envOnce sync.Once
-	envErr  error
-)
 
 // setupEnv reads Volcengine credentials from config file or env vars.
 // It is safe to call multiple times; the actual work runs at most once.

@@ -1,19 +1,20 @@
 # cocoon-net
 
-VPC-native networking setup for [Cocoon](https://github.com/cocoonstack/cocoon) VM nodes on GKE and Volcengine. It provisions cloud networking resources and configures the Linux host so that Windows and Linux VMs obtain VPC-routable IPs directly via DHCP — no overlay network, no iptables DNAT, no `kubectl port-forward` required.
+VPC-native networking for [Cocoon](https://github.com/cocoonstack/cocoon) VM nodes. Provisions cloud networking resources and runs an embedded DHCP server so VMs obtain VPC-routable IPs directly -- no overlay network, no iptables DNAT, no external DHCP server dependency.
 
 ## Overview
 
-- **Platform auto-detection** -- identifies GKE or Volcengine via instance metadata
+- **Embedded DHCP server** on `cni0` bridge, replacing the external DHCP server dependency
+- **Dynamic /32 host routes** added on DHCP lease, removed on expiry
+- **Platform auto-detection** via instance metadata (GKE or Volcengine)
 - **Cloud resource provisioning** -- GKE alias IP ranges or Volcengine ENI secondary IPs
-- **Host networking** -- cni0 bridge, dnsmasq DHCP, /32 host routes, iptables FORWARD + NAT
+- **Host networking** -- cni0 bridge, sysctl, iptables FORWARD + NAT
 - **CNI integration** -- generates conflist for Kubernetes pod networking
-- **State management** -- persists pool state to `/var/lib/cocoon/net/pool.json`
-- **Adopt mode** -- bring existing hand-provisioned nodes under management without cloud API calls
-- **Idempotent re-runs** -- skips config writes and service restarts when nothing changed
-- **Dry-run mode** -- preview all changes before applying
+- **State management** -- pool state persisted to `/var/lib/cocoon/net/pool.json`
+- **Adopt mode** -- bring existing hand-provisioned nodes under management
+- **Daemon mode** -- runs as a long-lived systemd service
 
-### Supported platforms
+### Supported Platforms
 
 | Platform | Mechanism | Max IPs/node |
 |---|---|---|
@@ -22,205 +23,164 @@ VPC-native networking setup for [Cocoon](https://github.com/cocoonstack/cocoon) 
 
 ## Architecture
 
-On each node, `cocoon-net init` runs through these steps:
+```
+cocoon-net init          cocoon-net daemon
+      |                        |
+      v                        v
+Cloud provisioning       Node setup (sysctl, bridge, iptables, CNI conflist)
+(alias IPs / ENIs)             |
+      |                        v
+      v                  DHCP server on cni0
+pool.json  <----------        |
+                               v
+                         On lease: add /32 route
+                         On release: del /32 route
+```
 
-1. **Detect** the cloud platform via instance metadata (auto, or `--platform` flag).
-2. **Provision** cloud networking:
-   - **GKE**: adds a secondary IP range to the subnet, assigns alias IPs to the instance NIC, fixes GCE guest-agent route hijack.
-   - **Volcengine**: creates a dedicated /24 subnet, creates and attaches 7 secondary ENIs, assigns 20 secondary private IPs per ENI.
-3. **Configure** the node:
-   - Creates `cni0` bridge with gateway IP.
-   - Generates `/etc/dnsmasq-cni.d/cni0.conf` with contiguous DHCP ranges and restarts `dnsmasq-cni`.
-   - Adds `/32` host routes for each VM IP pointing to `cni0`.
-   - Installs iptables FORWARD rules between secondary NICs and `cni0`, plus NAT MASQUERADE for outbound.
-   - Applies sysctl (`ip_forward=1`, `rp_filter=0`).
-4. **Generate** `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`.
-5. **Save** pool state to `/var/lib/cocoon/net/pool.json`.
+**Two-phase operation**:
+
+1. `cocoon-net init` (or `adopt`) -- one-time cloud provisioning + state persistence
+2. `cocoon-net daemon` -- long-running service: node setup + DHCP + dynamic routing
 
 ## Installation
-
-### Download
 
 ```bash
 curl -sL https://github.com/cocoonstack/cocoon-net/releases/latest/download/cocoon-net_Linux_x86_64.tar.gz | tar xz
 sudo install -m 0755 cocoon-net /usr/local/bin/
 ```
 
-### Build from source
+Build from source:
 
 ```bash
 git clone https://github.com/cocoonstack/cocoon-net.git
 cd cocoon-net
-make build          # produces ./cocoon-net
-```
-
-## Configuration
-
-### Flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--platform` | auto-detect | Force platform (`gke` or `volcengine`) |
-| `--node-name` | (required) | Virtual node name (e.g. `cocoon-pool`) |
-| `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
-| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |
-| `--gateway` | first IP in subnet | Gateway IP on `cni0` |
-| `--primary-nic` | auto-detect | Host primary NIC (`ens4` on GKE, `eth0` on Volcengine) |
-| `--dns` | `8.8.8.8,1.1.1.1` | Comma-separated DNS servers for DHCP clients |
-| `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
-| `--dry-run` | `false` | Show what would be done, without making changes |
-| `--manage-iptables` | `false` | (adopt only) Let cocoon-net write FORWARD + NAT rules |
-
-### Environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `COCOON_NET_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
-
-### Credentials
-
-**GKE**
-
-Uses application default credentials or the GCE instance service account. Requires `roles/compute.networkAdmin` or equivalent.
-
-**Volcengine**
-
-Reads from `~/.volcengine/config.json`:
-
-```json
-{
-  "access_key_id": "AKxxxx",
-  "secret_access_key": "xxxx",
-  "region": "cn-hongkong"
-}
-```
-
-Or environment variables:
-
-```bash
-export VOLCENGINE_ACCESS_KEY_ID=AKxxxx
-export VOLCENGINE_SECRET_ACCESS_KEY=xxxx
-export VOLCENGINE_REGION=cn-hongkong
+make build
 ```
 
 ## Usage
 
-### init — full node setup
+### init -- provision cloud networking
 
 ```bash
 sudo cocoon-net init \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140
 ```
 
-With all flags:
+### daemon -- run DHCP server (systemd service)
 
 ```bash
-sudo cocoon-net init \
-  --node-name cocoon-pool \
-  --subnet 172.20.100.0/24 \
-  --pool-size 140 \
-  --gateway 172.20.100.1 \
-  --platform volcengine \
-  --primary-nic eth0 \
-  --dns "8.8.8.8,1.1.1.1" \
-  --state-dir /var/lib/cocoon/net
+sudo cocoon-net daemon
 ```
 
-Dry run (show what would be done):
+The daemon loads the pool from `pool.json`, configures host networking, and starts the embedded DHCP server. Host routes are managed dynamically: added when a VM gets a lease, removed when the lease expires.
 
-```bash
-sudo cocoon-net init --node-name cocoon-pool --subnet 172.20.100.0/24 --dry-run
+Systemd unit:
+
+```ini
+[Unit]
+Description=cocoon-net VPC networking daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/cocoon-net daemon
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### adopt — bring an existing node under cocoon-net management
+### adopt -- bring an existing node under management
 
-For nodes whose cloud networking (alias IP range or secondary ENIs) was already provisioned by hand, `adopt` runs only the host-side configuration (bridge, sysctl, routes, dnsmasq, CNI conflist) and writes the pool state file — without calling any cloud APIs.
+For nodes whose cloud networking was already provisioned by hand:
 
 ```bash
 sudo cocoon-net adopt \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.0.0/24
 ```
 
-By default, adopt preserves the host's existing iptables rules. Opt in to let cocoon-net manage them:
+### status -- show pool state
 
 ```bash
-sudo cocoon-net adopt \
-  --node-name cocoon-pool \
-  --subnet 172.20.0.0/24 \
-  --manage-iptables
+cocoon-net status
 ```
 
-Cloud-side teardown must be done manually on adopted nodes — cocoon-net will not undo what it did not provision.
-
-### status — show pool state
-
-```bash
-sudo cocoon-net status
-```
-
-Output:
-
-```
-Platform:   volcengine
-Node:       cocoon-pool
-Subnet:     172.20.100.0/24
-Gateway:    172.20.100.1
-IPs:        140
-Updated:    2026-04-04T06:00:00Z
-ENIs:       7
-SubnetID:   subnet-xxx
-```
-
-### teardown — remove cloud networking
+### teardown -- remove cloud networking resources
 
 ```bash
 sudo cocoon-net teardown
 ```
 
-### CNI integration
+## Flags
 
-Both `init` and `adopt` generate `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`:
+| Flag | Default | Description |
+|---|---|---|
+| `--platform` | (required) | Cloud platform (`gke` or `volcengine`) |
+| `--node-name` | (required) | Virtual node name |
+| `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
+| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |
+| `--gateway` | first IP in subnet | Gateway IP on `cni0` |
+| `--primary-nic` | auto-detect | Host primary NIC |
+| `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
+| `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
+| `--lease-file` | `/var/lib/cocoon/net/leases.json` | DHCP lease persistence file |
+| `--dry-run` | `false` | Preview changes without applying |
+| `--skip-iptables` | `false` | (daemon) Skip iptables setup |
+| `--manage-iptables` | `false` | (adopt) Let cocoon-net write iptables rules |
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `COCOON_NET_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+
+## CNI Integration
+
+Both `init` and `adopt` generate `/etc/cni/net.d/30-cocoon-dhcp.conflist`:
 
 ```json
 {
   "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
-  "plugins": [
-    {
-      "type": "bridge",
-      "bridge": "cni0",
-      "isGateway": false,
-      "ipMasq": false,
-      "ipam": {}
-    }
-  ]
+  "name": "cocoon-dhcp",
+  "plugins": [{
+    "type": "bridge",
+    "bridge": "cni0",
+    "isGateway": false,
+    "ipMasq": false,
+    "ipam": {}
+  }]
 }
 ```
 
-The CNI IPAM is intentionally empty — Windows guests obtain their IP directly from dnsmasq running on `cni0`. Using `"type": "dhcp"` would cause a dual-DHCP conflict.
-
-In a CocoonSet, use `network: dnsmasq-dhcp` to route VM pods through this CNI:
+IPAM is intentionally empty -- VMs obtain IPs from the embedded DHCP server. In a CocoonSet:
 
 ```yaml
 spec:
   agent:
-    network: dnsmasq-dhcp
+    network: cocoon-dhcp
     os: windows
 ```
+
+## Credentials
+
+**GKE**: Uses application default credentials or GCE instance service account (`roles/compute.networkAdmin`).
+
+**Volcengine**: Reads from `~/.volcengine/config.json` or environment variables (`VOLCENGINE_ACCESS_KEY_ID`, `VOLCENGINE_SECRET_ACCESS_KEY`, `VOLCENGINE_REGION`).
 
 ## Development
 
 ```bash
-make build          # build binary
-make test           # run tests with coverage
-make lint           # run golangci-lint (linux + darwin)
-make fmt            # format code with gofumpt and goimports
-make deps           # tidy modules
-make clean          # remove artifacts
-make help           # show all targets
+make build      # build binary
+make test       # run tests with coverage
+make lint       # golangci-lint (linux + darwin)
+make fmt        # gofumpt + goimports
+make help       # show all targets
 ```
 
 ### Guides
@@ -232,11 +192,11 @@ make help           # show all targets
 
 | Project | Role |
 |---|---|
+| [cocoon](https://github.com/cocoonstack/cocoon) | MicroVM engine (Cloud Hypervisor + Firecracker) |
 | [cocoon-common](https://github.com/cocoonstack/cocoon-common) | Shared metadata, Kubernetes, and logging helpers |
 | [cocoon-operator](https://github.com/cocoonstack/cocoon-operator) | CocoonSet and Hibernation CRDs |
 | [cocoon-webhook](https://github.com/cocoonstack/cocoon-webhook) | Admission webhook for sticky scheduling |
-| [epoch](https://github.com/cocoonstack/epoch) | Snapshot storage backend |
-| [vk-cocoon](https://github.com/cocoonstack/vk-cocoon) | Virtual kubelet provider managing VM lifecycle |
+| [vk-cocoon](https://github.com/cocoonstack/vk-cocoon) | Virtual kubelet provider |
 
 ## License
 

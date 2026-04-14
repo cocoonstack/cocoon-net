@@ -22,7 +22,8 @@ var (
 
 // registerCommonFlags binds the flags shared by init and adopt subcommands.
 func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
-	cmd.Flags().StringVar(&flagPlatform, "platform", "", "force platform (gke|volcengine); auto-detect if empty")
+	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine)")
+	_ = cmd.MarkFlagRequired("platform")
 	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
 	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
 	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")

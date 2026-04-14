@@ -1,6 +1,9 @@
 package platform
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 const (
 	PlatformGKE        = "gke"
@@ -14,6 +17,21 @@ func DefaultNIC(platformName string) string {
 		return "eth0"
 	default:
 		return "ens4"
+	}
+}
+
+// DefaultSecondaryNICs returns the expected secondary NIC names for a platform.
+// GKE has no secondary NICs; Volcengine uses eth1..eth7 for ENIs.
+func DefaultSecondaryNICs(platformName string) []string {
+	switch platformName {
+	case PlatformVolcengine:
+		nics := make([]string, 7) //nolint:mnd
+		for i := range nics {
+			nics[i] = fmt.Sprintf("eth%d", i+1)
+		}
+		return nics
+	default:
+		return nil
 	}
 }
 
@@ -41,11 +59,12 @@ type Config struct {
 
 // NetworkResult is returned by ProvisionNetwork.
 type NetworkResult struct {
-	Platform   string
-	SubnetCIDR string
-	Gateway    string
-	PrimaryNIC string
-	IPs        []string
+	Platform      string
+	SubnetCIDR    string
+	Gateway       string
+	PrimaryNIC    string
+	SecondaryNICs []string // Volcengine: eth1..eth7; GKE: nil
+	IPs           []string
 }
 
 // PoolStatus holds live status information from the cloud platform.

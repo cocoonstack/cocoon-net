@@ -1,6 +1,6 @@
 # Volcengine VPC-Native Networking for Cocoon VM Nodes
 
-Make cocoon Windows/Linux VM pods directly routable within the Volcengine (火山引擎) VPC — no overlay, no iptables DNAT, no kubectl port-forward required for inter-VPC access.
+Make cocoon Windows/Linux VM pods directly routable within the Volcengine VPC — no overlay, no iptables DNAT, no kubectl port-forward required for inter-VPC access.
 
 ## Verified Result
 
@@ -73,6 +73,7 @@ Volcengine VPC (172.20.0.0/16)
 
 ```bash
 sudo cocoon-net init \
+  --platform volcengine \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140 \
@@ -85,9 +86,11 @@ This will:
 3. Create 7 secondary ENIs in the VM subnet and attach them to the instance
 4. Assign 20 secondary private IPs per ENI (140 total)
 5. Bring up `eth1`–`eth7` interfaces
-6. Configure `cni0` bridge, dnsmasq DHCP, host routes, iptables, sysctl
-7. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
+6. Configure `cni0` bridge, iptables, sysctl
+7. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
 8. Save pool state to `/var/lib/cocoon/net/pool.json`
+
+After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
 
 ## Adopting existing nodes
 
@@ -95,13 +98,14 @@ For EBM nodes that already have secondary ENIs and IPs provisioned by hand, use 
 
 ```bash
 sudo cocoon-net adopt \
+  --platform volcengine \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24
 ```
 
-This configures dnsmasq, CNI conflist, bridge, routes, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, `cocoon-net status` works normally. Cloud-side teardown (detaching/deleting ENIs) must still be done manually.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. Cloud-side teardown (detaching/deleting ENIs) must still be done manually.
 
 ## Manual Steps (for reference)
 
@@ -193,39 +197,13 @@ for eni in d.get('Result', {}).get('NetworkInterfaceSets', []):
 " > /tmp/vpc-ips.txt
 ```
 
-### 5. Generate dnsmasq config with contiguous ranges
+### 5. DHCP
+
+DHCP is provided by `cocoon-net daemon` (embedded server). No external DHCP server required. Host routes (/32) are managed dynamically on lease events.
 
 ```bash
-python3 -c "
-import ipaddress
-ips = open('/tmp/vpc-ips.txt').read().strip().split()
-ips.sort(key=lambda x: list(map(int, x.split('.'))))
-ranges = []
-start = ips[0]
-prev = ipaddress.IPv4Address(ips[0])
-for s in ips[1:]:
-    ip = ipaddress.IPv4Address(s)
-    if ip == prev + 1:
-        prev = ip
-    else:
-        ranges.append((start, str(prev)))
-        start = s
-        prev = ip
-ranges.append((start, str(prev)))
-print('interface=cni0')
-print('bind-interfaces')
-print('except-interface=lo')
-print('except-interface=eth0')
-for s, e in ranges:
-    print(f'dhcp-range={s},{e},255.255.255.0,24h')
-print('dhcp-option=option:router,172.20.100.1')
-print('dhcp-option=option:dns-server,8.8.8.8,1.1.1.1')
-print('dhcp-leasefile=/var/lib/misc/dnsmasq.leases')
-print('dhcp-authoritative')
-print('port=0')
-print('log-dhcp')
-" > /etc/dnsmasq-cni.d/cni0.conf
-systemctl restart dnsmasq-cni
+# Start the daemon (or use systemd unit)
+cocoon-net daemon
 ```
 
 ### 6. Security group
@@ -279,9 +257,9 @@ ve vpc AuthorizeSecurityGroupIngress \
 | Symptom | Cause | Fix |
 |---|---|---|
 | Cross-host ping fails, same-host works | Security group blocks VPC internal | Add `172.20.0.0/16 all` ingress rule |
-| No DHCP lease | dnsmasq range doesn't match secondary IPs | Re-export IPs, regenerate config |
+| No DHCP lease | Daemon not running or pool mismatch | Check `cocoon-net daemon` logs |
 | VM has IP but not reachable cross-host | `ethX` interfaces DOWN | `ip link set ethX up` |
-| `inconsistent DHCP range` in dnsmasq | Config has IPs from wrong subnet | Filter IPs by correct prefix |
+| DHCP offers wrong subnet | Pool state has IPs from wrong subnet | Re-run `cocoon-net init` or `adopt` with correct `--subnet` |
 | `InsufficientIpInSubnet` on IP assign | Orphaned ENIs consuming IPs | Delete detached ENIs in the subnet |
 | Windows no DHCP, SAC stuck | Wrong cloud-hypervisor version | Use cocoon fork from cocoonstack/cloud-hypervisor |
 
@@ -293,6 +271,7 @@ For new nodes:
 2. Run on the new node:
    ```bash
    sudo cocoon-net init \
+     --platform volcengine \
      --node-name cocoon-pool-N \
      --subnet 172.20.N.0/24 \
      --pool-size 140
@@ -303,6 +282,7 @@ For existing hand-provisioned nodes, use `adopt` instead of `init`:
 
 ```bash
 sudo cocoon-net adopt \
+  --platform volcengine \
   --node-name cocoon-pool-N \
   --subnet 172.20.N.0/24
 ```

@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -11,80 +10,51 @@ import (
 )
 
 const (
-	maxSecondaryNICs = 7
+	// BridgeName is the Linux bridge used for VM networking.
+	BridgeName = "cni0"
 
-	cniConfDir     = "/etc/cni/net.d"
-	cniConfFile    = "30-dnsmasq-dhcp.conflist"
-	cniConfContent = `{
-  "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
-  "plugins": [
-    {
-      "type": "bridge",
-      "bridge": "cni0",
-      "isGateway": false,
-      "ipMasq": false,
-      "ipam": {}
-    }
-  ]
-}
-`
+	cniConfDir  = "/etc/cni/net.d"
+	cniConfFile = "30-cocoon-dhcp.conflist"
 )
 
 // Config holds parameters for node setup.
 type Config struct {
-	// Networking config
-	Gateway    string
-	SubnetCIDR string
-	DNSServers []string
-	PrimaryNIC string
+	Gateway       string
+	SubnetCIDR    string
+	PrimaryNIC    string
+	SecondaryNICs []string // platform-provided (e.g. Volcengine eth1..eth7)
 
-	// Resources
-	IPs []string
-
-	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules. Set this
-	// when adopting an existing manually-provisioned node whose firewall rules
-	// were tuned by hand and where cocoon-net's MASQUERADE would change the
-	// outbound source IP visible to peers (e.g. GKE alias-IP routing already
-	// makes per-VM source IPs reachable via the host NIC, and a blanket
-	// MASQUERADE rewrite would mask them as the host's own IP). Other steps
-	// (sysctl, bridge, routes, dnsmasq, CNI conflist) still run.
+	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
 }
 
-// Setup configures all node networking components in order:
-//  1. sysctl
-//  2. cni0 bridge
-//  3. host routes
-//  4. iptables
-//  5. dnsmasq
-//  6. CNI conflist
+// Setup configures host networking components (idempotent):
+//  1. cni0 bridge (must exist before sysctl sets per-interface params)
+//  2. sysctl (ip_forward, rp_filter)
+//  3. iptables FORWARD + NAT
+//  4. CNI conflist
+//
+// Host routes (/32) are NOT added here — they are managed dynamically
+// by the DHCP server when leases are granted/released.
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
-	secondaryNICs := detectSecondaryNICs()
-	logger.Infof(ctx, "detected secondary NICs: %v", secondaryNICs)
-
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, secondaryNICs); err != nil {
-		return fmt.Errorf("sysctl: %w", err)
+	if len(cfg.SecondaryNICs) > 0 {
+		logger.Infof(ctx, "secondary NICs: %v", cfg.SecondaryNICs)
 	}
 
 	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupRoutes(ctx, cfg.IPs); err != nil {
-		return fmt.Errorf("routes: %w", err)
+	if err := setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs); err != nil {
+		return fmt.Errorf("sysctl: %w", err)
 	}
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
-	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
-	}
-
-	if err := setupDNSMasq(ctx, cfg); err != nil {
-		return fmt.Errorf("dnsmasq: %w", err)
 	}
 
 	if err := writeCNIConflist(ctx); err != nil {
@@ -95,35 +65,38 @@ func Setup(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-// writeCNIConflist writes the dnsmasq-dhcp CNI conflist if content has changed.
+// writeCNIConflist writes the cocoon-dhcp CNI conflist if content has changed.
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
+
+	content := fmt.Sprintf(`{
+  "cniVersion": "1.0.0",
+  "name": "cocoon-dhcp",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": %q,
+      "isGateway": false,
+      "ipMasq": false,
+      "ipam": {}
+    }
+  ]
+}
+`, BridgeName)
 
 	if err := os.MkdirAll(cniConfDir, 0o750); err != nil {
 		return fmt.Errorf("create cni conf dir: %w", err)
 	}
 	confPath := filepath.Join(cniConfDir, cniConfFile)
 
-	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == cniConfContent { //nolint:gosec // known path
+	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == content { //nolint:gosec // known path
 		logger.Info(ctx, "CNI conflist unchanged, skipping write")
 		return nil
 	}
 
-	if err := os.WriteFile(confPath, []byte(cniConfContent), 0o644); err != nil { //nolint:gosec // readable config
+	if err := os.WriteFile(confPath, []byte(content), 0o644); err != nil { //nolint:gosec // readable config
 		return fmt.Errorf("write cni conflist: %w", err)
 	}
 	logger.Infof(ctx, "wrote CNI conflist to %s", confPath)
 	return nil
-}
-
-// detectSecondaryNICs returns the list of secondary NIC names (eth1..ethN) that exist.
-func detectSecondaryNICs() []string {
-	var nics []string
-	for i := 1; i <= maxSecondaryNICs; i++ {
-		name := fmt.Sprintf("eth%d", i)
-		if _, err := net.InterfaceByName(name); err == nil {
-			nics = append(nics, name)
-		}
-	}
-	return nics
 }

@@ -50,15 +50,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	var plat platform.CloudPlatform
-	var err error
-	if flagPlatform != "" {
-		plat, err = newPlatform(flagPlatform)
-	} else {
-		plat, err = detectPlatform(ctx)
-	}
+	plat, err := newPlatform(flagPlatform)
 	if err != nil {
-		return fmt.Errorf("detect platform: %w", err)
+		return fmt.Errorf("init platform: %w", err)
 	}
 	logger.Infof(ctx, "platform: %s", plat.Name())
 
@@ -69,11 +63,10 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	logger.Infof(ctx, "provisioned %d IPs on subnet %s", len(result.IPs), result.SubnetCIDR)
 
 	nodeCfg := &node.Config{
-		Gateway:    result.Gateway,
-		SubnetCIDR: result.SubnetCIDR,
-		IPs:        result.IPs,
-		DNSServers: cfg.DNSServers,
-		PrimaryNIC: result.PrimaryNIC,
+		Gateway:       result.Gateway,
+		SubnetCIDR:    result.SubnetCIDR,
+		PrimaryNIC:    result.PrimaryNIC,
+		SecondaryNICs: result.SecondaryNICs,
 	}
 	if err := node.Setup(ctx, nodeCfg); err != nil {
 		return fmt.Errorf("node setup: %w", err)
@@ -81,12 +74,14 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	logger.Info(ctx, "node networking configured")
 
 	state := &pool.State{
-		Platform: result.Platform,
-		NodeName: cfg.NodeName,
-		Subnet:   result.SubnetCIDR,
-		Gateway:  result.Gateway,
-		IPs:      result.IPs,
-		StateDir: flagStateDir,
+		Platform:      result.Platform,
+		NodeName:      cfg.NodeName,
+		Subnet:        result.SubnetCIDR,
+		Gateway:       result.Gateway,
+		PrimaryNIC:    result.PrimaryNIC,
+		SecondaryNICs: result.SecondaryNICs,
+		IPs:           result.IPs,
+		StateDir:      flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)

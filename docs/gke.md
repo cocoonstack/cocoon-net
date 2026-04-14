@@ -26,8 +26,8 @@ GKE VPC (e.g. 10.0.0.0/8)
 
 1. GKE subnets support **secondary IP ranges** — named CIDR blocks that can be assigned as alias IPs to GCE instances.
 2. Each cocoonset node gets a `/24` alias IP range (e.g. `172.20.100.0/24`) — all IPs in this range are **VPC-routable** to that instance.
-3. cocoon-net assigns a subset of the alias IPs to the `cni0` bridge's DHCP pool.
-4. VMs obtain IPs via DHCP from dnsmasq; those IPs are within the VPC-routed alias range.
+3. cocoon-net assigns the alias IPs to its embedded DHCP server pool.
+4. VMs obtain IPs via DHCP from the embedded server; those IPs are within the VPC-routed alias range.
 5. Any GKE pod or node can reach VM IPs directly via L3 routing — no iptables DNAT needed.
 
 **Key caveat**: The GCE guest agent installs a `local` route for the alias CIDR in the kernel's `local` routing table, which causes the host to respond to those IPs itself (blackholing VM traffic). cocoon-net removes this route and installs a cron job to remove it on reboot.
@@ -43,6 +43,7 @@ GKE VPC (e.g. 10.0.0.0/8)
 
 ```bash
 sudo cocoon-net init \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140 \
@@ -54,9 +55,11 @@ This will:
 2. Add the secondary range `cocoon-pods=172.20.100.0/24` to the node's subnet
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
-5. Configure `cni0` bridge, dnsmasq DHCP, host routes, iptables, sysctl
-6. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
+5. Configure `cni0` bridge, iptables, sysctl
+6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
 7. Save pool state to `/var/lib/cocoon/net/pool.json`
+
+After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
 
 ## Adopting existing nodes
 
@@ -64,13 +67,14 @@ For GKE nodes that were already provisioned by hand (alias IP range assigned, br
 
 ```bash
 sudo cocoon-net adopt \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24
 ```
 
-This configures dnsmasq, CNI conflist, bridge, routes, and sysctl from cocoon-net's templates, and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, `cocoon-net status` and future re-runs of `adopt` work normally. Cloud-side teardown (removing the alias range) must still be done manually.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. Cloud-side teardown (removing the alias range) must still be done manually.
 
 ## Manual Steps (for reference)
 
@@ -123,16 +127,7 @@ sysctl -w net.ipv4.conf.cni0.rp_filter=0
 sysctl -w net.ipv4.conf.ens4.rp_filter=0
 ```
 
-### 6. Host routes
-
-```bash
-# One /32 route per VM IP pointing to cni0
-ip route replace 172.20.100.2/32 dev cni0
-ip route replace 172.20.100.3/32 dev cni0
-# ... etc
-```
-
-### 7. iptables
+### 6. iptables
 
 ```bash
 # Allow VM traffic out via ens4 with MASQUERADE (internet access)
@@ -141,33 +136,22 @@ iptables -t nat -A POSTROUTING -s 172.20.100.0/24 ! -o cni0 -j MASQUERADE
 iptables -A FORWARD -i cni0 -o cni0 -j ACCEPT
 ```
 
-### 8. dnsmasq
+### 7. DHCP
+
+DHCP is provided by `cocoon-net daemon` (embedded server). No external DHCP server required. Host routes (/32) are managed dynamically on lease events.
 
 ```bash
-mkdir -p /etc/dnsmasq-cni.d
-cat > /etc/dnsmasq-cni.d/cni0.conf <<'EOF'
-interface=cni0
-bind-interfaces
-except-interface=lo
-except-interface=ens4
-dhcp-range=172.20.100.2,172.20.100.141,255.255.255.0,24h
-dhcp-option=option:router,172.20.100.1
-dhcp-option=option:dns-server,8.8.8.8,1.1.1.1
-dhcp-leasefile=/var/lib/misc/dnsmasq.leases
-dhcp-authoritative
-port=0
-log-dhcp
-EOF
-systemctl restart dnsmasq-cni
+# Start the daemon (or use systemd unit)
+cocoon-net daemon
 ```
 
-### 9. CNI conflist
+### 8. CNI conflist
 
 ```bash
-cat > /etc/cni/net.d/30-dnsmasq-dhcp.conflist <<'EOF'
+cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
 {
   "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
+  "name": "cocoon-dhcp",
   "plugins": [
     {
       "type": "bridge",
@@ -221,6 +205,6 @@ gcloud compute firewall-rules create allow-gke-master-to-vk \
 | Symptom | Cause | Fix |
 |---|---|---|
 | VM has IP but not reachable | GCE guest agent local route | `ip route del local <cidr> dev ens4 table local` |
-| No DHCP lease | dnsmasq range doesn't match alias IPs | Re-run `cocoon-net init` |
+| No DHCP lease | Daemon not running or pool mismatch | Check `cocoon-net daemon` logs |
 | kubectl exec/logs timeout | Firewall blocks port 10250 | Add firewall rule for GKE master CIDR |
 | `alias IP range overlaps` | Secondary range already assigned | Use same range name `cocoon-pods` |
