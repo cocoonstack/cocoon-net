@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultLeaseTime = 24 * time.Hour
+	defaultLeaseTime     = 24 * time.Hour
 	leaseCleanupInterval = time.Minute
 )
 
@@ -36,6 +36,7 @@ type Server struct {
 	srv    *server4.Server
 
 	mu      sync.Mutex
+	ctx     context.Context
 	stopped bool
 }
 
@@ -47,13 +48,15 @@ func New(conf Config, ips []net.IP) *Server {
 	return &Server{
 		conf:   conf,
 		pool:   newIPPool(ips),
-		leases: newLeaseStore(conf.LeaseFile, conf.Interface),
+		leases: newLeaseStore(conf.LeaseFile),
 	}
 }
 
-// Run starts the DHCP server and blocks until ctx is cancelled.
+// Run starts the DHCP server and blocks until ctx is canceled.
 func (s *Server) Run(ctx context.Context) error {
 	logger := log.WithFunc("dhcp.Run")
+
+	s.ctx = ctx
 
 	if err := s.leases.load(); err != nil {
 		logger.Warnf(ctx, "load leases: %v (starting fresh)", err)
@@ -71,10 +74,8 @@ func (s *Server) Run(ctx context.Context) error {
 	logger.Infof(ctx, "DHCP server listening on %s (pool: %d IPs, gateway: %s)",
 		s.conf.Interface, s.pool.freeCount(), s.conf.Gateway)
 
-	// Lease cleanup goroutine.
 	go s.cleanupLoop(ctx)
 
-	// Serve blocks until error or close.
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve() }()
 
@@ -83,7 +84,7 @@ func (s *Server) Run(ctx context.Context) error {
 		s.mu.Lock()
 		s.stopped = true
 		s.mu.Unlock()
-		srv.Close()
+		_ = srv.Close()
 		_ = s.leases.save()
 		logger.Info(ctx, "DHCP server stopped")
 		return nil
@@ -100,73 +101,67 @@ func (s *Server) Run(ctx context.Context) error {
 
 // handler processes each DHCP packet.
 func (s *Server) handler(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
-	ctx := context.Background()
-	logger := log.WithFunc("dhcp.handler")
-
 	if msg.OpCode != dhcpv4.OpcodeBootRequest {
 		return
 	}
 
 	mac := msg.ClientHWAddr
-	msgType := msg.MessageType()
 
-	switch msgType {
+	switch msg.MessageType() {
 	case dhcpv4.MessageTypeDiscover:
-		s.handleDiscover(ctx, conn, peer, msg, mac, logger)
+		s.handleDiscover(conn, peer, msg, mac)
 	case dhcpv4.MessageTypeRequest:
-		s.handleRequest(ctx, conn, peer, msg, mac, logger)
+		s.handleRequest(conn, peer, msg, mac)
 	case dhcpv4.MessageTypeRelease:
-		s.handleRelease(ctx, msg, mac, logger)
+		s.handleRelease(mac)
 	}
 }
 
-func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr, logger *log.Fields) {
-	// Check existing lease first.
+func (s *Server) handleDiscover(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
+	logger := log.WithFunc("dhcp.handleDiscover")
+
+	// Re-offer existing lease; otherwise allocate a new IP.
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
 		ip = s.pool.allocate()
 		if ip == nil {
-			logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
+			logger.Warnf(s.ctx, "DISCOVER from %s: pool exhausted", mac)
 			return
 		}
+		// Track the offered IP immediately so a concurrent DISCOVER
+		// for another MAC does not hand out the same address.
+		s.pool.markUsed(ip)
 	}
 
-	resp, err := dhcpv4.NewReplyFromRequest(msg,
-		dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
-		dhcpv4.WithYourIP(ip),
-		dhcpv4.WithServerIP(s.conf.Gateway),
-		dhcpv4.WithOption(dhcpv4.OptSubnetMask(s.conf.SubnetMask)),
-		dhcpv4.WithOption(dhcpv4.OptRouter(s.conf.Gateway)),
-		dhcpv4.WithOption(dhcpv4.OptDNS(s.conf.DNSServers...)),
-		dhcpv4.WithOption(dhcpv4.OptIPAddressLeaseTime(s.conf.LeaseTime)),
-		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(s.conf.Gateway)),
-	)
+	resp, err := s.buildReply(msg, dhcpv4.MessageTypeOffer, ip)
 	if err != nil {
-		logger.Warnf(ctx, "build OFFER for %s: %v", mac, err)
+		logger.Warnf(s.ctx, "build OFFER for %s: %v", mac, err)
 		return
 	}
 
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		logger.Warnf(ctx, "send OFFER to %s: %v", mac, err)
+		logger.Warnf(s.ctx, "send OFFER to %s: %v", mac, err)
 		return
 	}
-	logger.Infof(ctx, "OFFER %s → %s", ip, mac)
+	logger.Infof(s.ctx, "OFFER %s -> %s", ip, mac)
 }
 
-func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr, logger *log.Fields) {
+func (s *Server) handleRequest(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
+	logger := log.WithFunc("dhcp.handleRequest")
+
 	reqIP := msg.RequestedIPAddress()
 	if reqIP == nil || reqIP.IsUnspecified() {
 		reqIP = msg.ClientIPAddr
 	}
 	if reqIP == nil || reqIP.IsUnspecified() {
-		logger.Warnf(ctx, "REQUEST from %s: no IP requested", mac)
+		logger.Warnf(s.ctx, "REQUEST from %s: no IP requested", mac)
 		return
 	}
 
 	// Validate the requested IP is in our pool or already leased to this MAC.
 	if !s.pool.contains(reqIP) && !s.leases.isLeasedTo(mac, reqIP) {
-		s.sendNAK(conn, peer, msg, logger)
-		logger.Warnf(ctx, "NAK %s → %s (not in pool)", reqIP, mac)
+		s.sendNAK(conn, peer, msg)
+		logger.Warnf(s.ctx, "NAK %s -> %s (not in pool)", reqIP, mac)
 		return
 	}
 
@@ -176,34 +171,27 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 
 	// Add /32 host route.
 	if err := addRoute(reqIP, s.conf.Interface); err != nil {
-		logger.Warnf(ctx, "add route %s: %v", reqIP, err)
+		logger.Warnf(s.ctx, "add route %s: %v", reqIP, err)
 	}
 
-	resp, err := dhcpv4.NewReplyFromRequest(msg,
-		dhcpv4.WithMessageType(dhcpv4.MessageTypeAck),
-		dhcpv4.WithYourIP(reqIP),
-		dhcpv4.WithServerIP(s.conf.Gateway),
-		dhcpv4.WithOption(dhcpv4.OptSubnetMask(s.conf.SubnetMask)),
-		dhcpv4.WithOption(dhcpv4.OptRouter(s.conf.Gateway)),
-		dhcpv4.WithOption(dhcpv4.OptDNS(s.conf.DNSServers...)),
-		dhcpv4.WithOption(dhcpv4.OptIPAddressLeaseTime(s.conf.LeaseTime)),
-		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(s.conf.Gateway)),
-	)
+	resp, err := s.buildReply(msg, dhcpv4.MessageTypeAck, reqIP)
 	if err != nil {
-		logger.Warnf(ctx, "build ACK for %s: %v", mac, err)
+		logger.Warnf(s.ctx, "build ACK for %s: %v", mac, err)
 		return
 	}
 
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		logger.Warnf(ctx, "send ACK to %s: %v", mac, err)
+		logger.Warnf(s.ctx, "send ACK to %s: %v", mac, err)
 		return
 	}
 
 	_ = s.leases.save()
-	logger.Infof(ctx, "ACK %s → %s", reqIP, mac)
+	logger.Infof(s.ctx, "ACK %s -> %s", reqIP, mac)
 }
 
-func (s *Server) handleRelease(ctx context.Context, _ *dhcpv4.DHCPv4, mac net.HardwareAddr, logger *log.Fields) {
+func (s *Server) handleRelease(mac net.HardwareAddr) {
+	logger := log.WithFunc("dhcp.handleRelease")
+
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
 		return
@@ -213,14 +201,28 @@ func (s *Server) handleRelease(ctx context.Context, _ *dhcpv4.DHCPv4, mac net.Ha
 	s.pool.release(ip)
 
 	if err := delRoute(ip, s.conf.Interface); err != nil {
-		logger.Warnf(ctx, "del route %s: %v", ip, err)
+		logger.Warnf(s.ctx, "del route %s: %v", ip, err)
 	}
 
 	_ = s.leases.save()
-	logger.Infof(ctx, "RELEASE %s ← %s", ip, mac)
+	logger.Infof(s.ctx, "RELEASE %s <- %s", ip, mac)
 }
 
-func (s *Server) sendNAK(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, logger *log.Fields) {
+// buildReply constructs a DHCP reply with standard options.
+func (s *Server) buildReply(req *dhcpv4.DHCPv4, msgType dhcpv4.MessageType, ip net.IP) (*dhcpv4.DHCPv4, error) {
+	return dhcpv4.NewReplyFromRequest(req,
+		dhcpv4.WithMessageType(msgType),
+		dhcpv4.WithYourIP(ip),
+		dhcpv4.WithServerIP(s.conf.Gateway),
+		dhcpv4.WithOption(dhcpv4.OptSubnetMask(s.conf.SubnetMask)),
+		dhcpv4.WithOption(dhcpv4.OptRouter(s.conf.Gateway)),
+		dhcpv4.WithOption(dhcpv4.OptDNS(s.conf.DNSServers...)),
+		dhcpv4.WithOption(dhcpv4.OptIPAddressLeaseTime(s.conf.LeaseTime)),
+		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(s.conf.Gateway)),
+	)
+}
+
+func (s *Server) sendNAK(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
 	resp, err := dhcpv4.NewReplyFromRequest(msg,
 		dhcpv4.WithMessageType(dhcpv4.MessageTypeNak),
 		dhcpv4.WithServerIP(s.conf.Gateway),
@@ -230,7 +232,7 @@ func (s *Server) sendNAK(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4,
 		return
 	}
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		logger.Warnf(context.Background(), "send NAK: %v", err)
+		log.WithFunc("dhcp.sendNAK").Warnf(s.ctx, "send NAK: %v", err)
 	}
 }
 
@@ -266,7 +268,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				if err := delRoute(l.IP, s.conf.Interface); err != nil {
 					logger.Warnf(ctx, "del expired route %s: %v", l.IP, err)
 				}
-				logger.Infof(ctx, "expired lease %s ← %s", l.IP, l.MAC)
+				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
 			}
 			if len(expired) > 0 {
 				_ = s.leases.save()

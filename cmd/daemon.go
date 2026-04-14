@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/projecteru2/core/log"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/cocoonstack/cocoon-net/dhcp"
 	"github.com/cocoonstack/cocoon-net/node"
+	"github.com/cocoonstack/cocoon-net/platform"
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
@@ -61,17 +63,14 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	logger.Infof(ctx, "pool loaded: %d IPs, subnet %s, gateway %s", len(state.IPs), state.Subnet, state.Gateway)
 
 	// Setup host networking (idempotent).
-	primaryNIC := "ens4"
-	if state.Platform == "volcengine" {
-		primaryNIC = "eth0"
-	}
-	if err := node.Setup(ctx, &node.Config{
+	primaryNIC := platform.DefaultNIC(state.Platform)
+	if setupErr := node.Setup(ctx, &node.Config{
 		Gateway:      state.Gateway,
 		SubnetCIDR:   state.Subnet,
 		PrimaryNIC:   primaryNIC,
 		SkipIPTables: skipIPTables,
-	}); err != nil {
-		return fmt.Errorf("node setup: %w", err)
+	}); setupErr != nil {
+		return fmt.Errorf("node setup: %w", setupErr)
 	}
 
 	// Parse network config.
@@ -85,23 +84,13 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("invalid subnet: %w", err)
 	}
 
-	var poolIPs []net.IP
-	for _, s := range state.IPs {
-		ip := net.ParseIP(s).To4()
-		if ip != nil {
-			poolIPs = append(poolIPs, ip)
-		}
+	poolIPs := parseIPs(state.IPs)
+	if len(poolIPs) == 0 {
+		return fmt.Errorf("no valid IPs in pool")
 	}
+	dnsIPs := parseIPs(dnsStrs)
 
-	var dnsIPs []net.IP
-	for _, s := range dnsStrs {
-		ip := net.ParseIP(s).To4()
-		if ip != nil {
-			dnsIPs = append(dnsIPs, ip)
-		}
-	}
-
-	// Start DHCP server (blocks until ctx cancelled).
+	// Start DHCP server (blocks until ctx canceled).
 	srv := dhcp.New(dhcp.Config{
 		Interface:  cni0Bridge,
 		Gateway:    gateway,
@@ -117,17 +106,41 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 // acquirePIDFile writes the current PID to /run/cocoon-net.pid and fails
 // if another instance is already running.
 func acquirePIDFile() error {
-	if data, err := os.ReadFile(pidFile); err == nil {
-		if pid, parseErr := strconv.Atoi(string(data)); parseErr == nil {
-			if proc, findErr := os.FindProcess(pid); findErr == nil {
-				if proc.Signal(syscall.Signal(0)) == nil {
-					return fmt.Errorf("another cocoon-net daemon is running (pid %d)", pid)
-				}
-			}
-		}
+	if err := checkExistingPID(); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil { //nolint:gosec
 		return fmt.Errorf("create pid dir: %w", err)
 	}
 	return os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644) //nolint:gosec
+}
+
+func checkExistingPID() error {
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return nil // no PID file, safe to proceed
+	}
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return nil // corrupt PID file, overwrite
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return nil
+	}
+	if proc.Signal(syscall.Signal(0)) == nil {
+		return fmt.Errorf("another cocoon-net daemon is running (pid %d)", pid)
+	}
+	return nil // stale PID, process dead
+}
+
+// parseIPs converts a string slice to IPv4 addresses, skipping invalid entries.
+func parseIPs(strs []string) []net.IP {
+	ips := make([]net.IP, 0, len(strs))
+	for _, s := range strs {
+		if ip := net.ParseIP(s).To4(); ip != nil {
+			ips = append(ips, ip)
+		}
+	}
+	return ips
 }

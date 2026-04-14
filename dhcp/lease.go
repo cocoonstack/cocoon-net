@@ -10,9 +10,9 @@ import (
 
 // lease represents a single DHCP lease.
 type lease struct {
-	MAC    net.HardwareAddr `json:"mac"`
-	IP     net.IP           `json:"ip"`
-	Expiry time.Time        `json:"expiry"`
+	MAC    net.HardwareAddr
+	IP     net.IP
+	Expiry time.Time
 }
 
 // leaseEntry is the JSON-serializable form of a lease.
@@ -24,17 +24,15 @@ type leaseEntry struct {
 
 // leaseStore manages active leases with persistence to a JSON file.
 type leaseStore struct {
-	mu        sync.RWMutex
-	leases    map[string]*lease // keyed by MAC string
-	filePath  string
-	iface     string
+	mu       sync.RWMutex
+	leases   map[string]*lease // keyed by MAC string
+	filePath string
 }
 
-func newLeaseStore(filePath, iface string) *leaseStore {
+func newLeaseStore(filePath string) *leaseStore {
 	return &leaseStore{
 		leases:   make(map[string]*lease),
 		filePath: filePath,
-		iface:    iface,
 	}
 }
 

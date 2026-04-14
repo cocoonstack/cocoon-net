@@ -5,10 +5,9 @@ import (
 	"sync"
 )
 
-// ipPool tracks which IPs from the fixed pool are available or in use.
+// ipPool tracks which IPs from the fixed pool are free or in use.
 type ipPool struct {
-	mu        sync.Mutex
-	all  []net.IP          // full pool (immutable)
+	mu   sync.RWMutex
 	free map[uint32]net.IP // IPs not yet leased
 	used map[uint32]bool   // currently leased IPs
 }
@@ -19,7 +18,6 @@ func newIPPool(ips []net.IP) *ipPool {
 		free[ipToUint32(ip)] = ip.To4()
 	}
 	return &ipPool{
-		all:  ips,
 		free: free,
 		used: make(map[uint32]bool),
 	}
@@ -37,8 +35,11 @@ func (p *ipPool) allocate() net.IP {
 	return nil
 }
 
-// release returns an IP to the available pool.
+// release returns an IP to the free pool.
 func (p *ipPool) release(ip net.IP) {
+	if ip == nil {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	k := ipToUint32(ip.To4())
@@ -46,7 +47,7 @@ func (p *ipPool) release(ip net.IP) {
 	p.free[k] = ip.To4()
 }
 
-// markUsed moves an IP from available to used (for lease restoration).
+// markUsed moves an IP from free to used (for lease restoration).
 func (p *ipPool) markUsed(ip net.IP) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -57,17 +58,18 @@ func (p *ipPool) markUsed(ip net.IP) {
 
 // contains checks if an IP belongs to this pool (regardless of allocation state).
 func (p *ipPool) contains(ip net.IP) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	k := ipToUint32(ip.To4())
-	_, inAvail := p.free[k]
+	_, inFree := p.free[k]
 	_, inUsed := p.used[k]
-	return inAvail || inUsed
+	return inFree || inUsed
 }
 
+// freeCount returns the number of unallocated IPs.
 func (p *ipPool) freeCount() int {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return len(p.free)
 }
 
