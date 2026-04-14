@@ -15,14 +15,15 @@ const poolFileName = "pool.json"
 
 // State represents the pool state persisted to disk.
 type State struct {
-	Platform  string    `json:"platform"`
-	NodeName  string    `json:"nodeName"`
-	Subnet    string    `json:"subnet"`
-	Gateway   string    `json:"gateway"`
-	IPs       []string  `json:"ips"`
-	ENIIDs    []string  `json:"eniIDs,omitempty"`
-	SubnetID  string    `json:"subnetID,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	Platform   string    `json:"platform"`
+	NodeName   string    `json:"nodeName"`
+	Subnet     string    `json:"subnet"`
+	Gateway    string    `json:"gateway"`
+	PrimaryNIC string    `json:"primaryNIC,omitempty"`
+	IPs        []string  `json:"ips"`
+	ENIIDs     []string  `json:"eniIDs,omitempty"`
+	SubnetID   string    `json:"subnetID,omitempty"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 
 	// StateDir is used at runtime and not persisted.
 	StateDir string `json:"-"`

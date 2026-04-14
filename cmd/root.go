@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"github.com/projecteru2/core/log"
@@ -75,40 +74,4 @@ func newPlatform(name string) (platform.CloudPlatform, error) {
 	default:
 		return nil, fmt.Errorf("unknown platform: %s (valid: %s, %s)", name, platform.PlatformGKE, platform.PlatformVolcengine)
 	}
-}
-
-// detectPlatform auto-detects the cloud platform by probing metadata endpoints concurrently.
-func detectPlatform(ctx context.Context) (platform.CloudPlatform, error) {
-	type result struct {
-		plat platform.CloudPlatform
-	}
-	ch := make(chan result, 2)
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	go func() {
-		defer wg.Done()
-		if gke.Detect(ctx) {
-			ch <- result{plat: &gke.GKE{}}
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		if volcengine.Detect(ctx) {
-			ch <- result{plat: &volcengine.Volcengine{}}
-		}
-	}()
-
-	// Close channel once both probes finish.
-	go func() {
-		wg.Wait()
-		close(ch)
-	}()
-
-	for r := range ch {
-		if r.plat != nil {
-			return r.plat, nil
-		}
-	}
-	return nil, fmt.Errorf("could not detect cloud platform — set --platform explicitly (%s|%s)", platform.PlatformGKE, platform.PlatformVolcengine)
 }

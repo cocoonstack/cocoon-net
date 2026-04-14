@@ -31,7 +31,7 @@ func newDaemonCmd() *cobra.Command {
 		Long: `Daemon mode loads the IP pool from the state file, configures host
 networking (sysctl, bridge, iptables), and starts an embedded DHCP server
 on cni0. Host routes (/32) are added dynamically when leases are granted
-and removed when they expire. This replaces the external dnsmasq dependency.`,
+and removed when they expire.`,
 		RunE: runDaemon,
 	}
 	cmd.Flags().String("state-dir", defaultStateDir, "directory containing pool.json")
@@ -63,7 +63,10 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	logger.Infof(ctx, "pool loaded: %d IPs, subnet %s, gateway %s", len(state.IPs), state.Subnet, state.Gateway)
 
 	// Setup host networking (idempotent).
-	primaryNIC := platform.DefaultNIC(state.Platform)
+	primaryNIC := state.PrimaryNIC
+	if primaryNIC == "" {
+		primaryNIC = platform.DefaultNIC(state.Platform)
+	}
 	if setupErr := node.Setup(ctx, &node.Config{
 		Gateway:      state.Gateway,
 		SubnetCIDR:   state.Subnet,

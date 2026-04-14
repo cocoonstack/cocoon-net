@@ -23,17 +23,10 @@ func newAdoptCmd() *cobra.Command {
 		Use:   "adopt",
 		Short: "Adopt an existing manually-provisioned node into cocoon-net state",
 		Long: `Adopt configures a node whose cloud networking (alias IP range or
-secondary ENIs) already exists. cocoon-net will overwrite the dnsmasq
-config, CNI conflist, bridge, iptables, sysctl, and pool state file from
-its own templates while leaving the cloud-side allocation untouched.
-
-Use this on hosts that were provisioned by hand (or by an older script)
-before cocoon-net existed, to bring them under cocoon-net management
-without calling any cloud APIs.
-
-Required flags:
-  --node-name   the virtual node name (e.g. cocoon-pool, cocoon-pool-2)
-  --subnet      the existing alias range CIDR (e.g. 172.20.0.0/24)`,
+secondary ENIs) already exists. cocoon-net will configure the bridge,
+CNI conflist, sysctl, and write the pool state file while leaving
+the cloud-side allocation untouched. Run 'cocoon-net daemon' after
+adopt to start the embedded DHCP server.`,
 		RunE: runAdopt,
 	}
 
@@ -63,18 +56,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("compute ip list: %w", err)
 	}
 
-	// Auto-detect platform name purely for the state file.
-	// Default to GKE when neither metadata server answers.
 	platformName := flagPlatform
-	if platformName == "" {
-		if plat, derr := detectPlatform(ctx); derr == nil {
-			platformName = plat.Name()
-		} else {
-			logger.Warnf(ctx, "platform auto-detect failed (%v), defaulting to %s", derr, platform.PlatformGKE)
-			platformName = platform.PlatformGKE
-		}
-	}
-
 	primaryNIC := flagPrimaryNIC
 	if primaryNIC == "" {
 		primaryNIC = platform.DefaultNIC(platformName)
@@ -97,7 +79,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  manage-iptables: %v\n", flagManageIPTables)
 		fmt.Println()
 		fmt.Println("would write:")
-		fmt.Println("  /etc/cni/net.d/30-dnsmasq-dhcp.conflist")
+		fmt.Println("  /etc/cni/net.d/30-cocoon-dhcp.conflist")
 		fmt.Printf("  %s/pool.json\n", flagStateDir)
 		iptablesPlan := "skipped (preserve existing rules)"
 		if flagManageIPTables {
@@ -121,12 +103,13 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	logger.Info(ctx, "node networking configured (adopted, cloud side untouched)")
 
 	state := &pool.State{
-		Platform: platformName,
-		NodeName: flagNodeName,
-		Subnet:   flagSubnet,
-		Gateway:  gateway,
-		IPs:      ips,
-		StateDir: flagStateDir,
+		Platform:   platformName,
+		NodeName:   flagNodeName,
+		Subnet:     flagSubnet,
+		Gateway:    gateway,
+		PrimaryNIC: primaryNIC,
+		IPs:        ips,
+		StateDir:   flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)

@@ -1,10 +1,10 @@
 # cocoon-net
 
-VPC-native networking for [Cocoon](https://github.com/cocoonstack/cocoon) VM nodes. Provisions cloud networking resources and runs an embedded DHCP server so VMs obtain VPC-routable IPs directly -- no overlay network, no iptables DNAT, no external dnsmasq dependency.
+VPC-native networking for [Cocoon](https://github.com/cocoonstack/cocoon) VM nodes. Provisions cloud networking resources and runs an embedded DHCP server so VMs obtain VPC-routable IPs directly -- no overlay network, no iptables DNAT, no external DHCP server dependency.
 
 ## Overview
 
-- **Embedded DHCP server** on `cni0` bridge, replacing the external dnsmasq dependency
+- **Embedded DHCP server** on `cni0` bridge, replacing the external DHCP server dependency
 - **Dynamic /32 host routes** added on DHCP lease, removed on expiry
 - **Platform auto-detection** via instance metadata (GKE or Volcengine)
 - **Cloud resource provisioning** -- GKE alias IP ranges or Volcengine ENI secondary IPs
@@ -63,6 +63,7 @@ make build
 
 ```bash
 sudo cocoon-net init \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140
@@ -99,6 +100,7 @@ For nodes whose cloud networking was already provisioned by hand:
 
 ```bash
 sudo cocoon-net adopt \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.0.0/24
 ```
@@ -119,7 +121,7 @@ sudo cocoon-net teardown
 
 | Flag | Default | Description |
 |---|---|---|
-| `--platform` | auto-detect | Force platform (`gke` or `volcengine`) |
+| `--platform` | (required) | Cloud platform (`gke` or `volcengine`) |
 | `--node-name` | (required) | Virtual node name |
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
 | `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |
@@ -140,12 +142,12 @@ sudo cocoon-net teardown
 
 ## CNI Integration
 
-Both `init` and `adopt` generate `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`:
+Both `init` and `adopt` generate `/etc/cni/net.d/30-cocoon-dhcp.conflist`:
 
 ```json
 {
   "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
+  "name": "cocoon-dhcp",
   "plugins": [{
     "type": "bridge",
     "bridge": "cni0",
@@ -161,7 +163,7 @@ IPAM is intentionally empty -- VMs obtain IPs from the embedded DHCP server. In 
 ```yaml
 spec:
   agent:
-    network: dnsmasq-dhcp
+    network: cocoon-dhcp
     os: windows
 ```
 

@@ -14,10 +14,10 @@ const (
 	maxSecondaryNICs = 7
 
 	cniConfDir     = "/etc/cni/net.d"
-	cniConfFile    = "30-dnsmasq-dhcp.conflist"
+	cniConfFile    = "30-cocoon-dhcp.conflist"
 	cniConfContent = `{
   "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
+  "name": "cocoon-dhcp",
   "plugins": [
     {
       "type": "bridge",
@@ -77,7 +77,7 @@ func Setup(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-// writeCNIConflist writes the dnsmasq-dhcp CNI conflist if content has changed.
+// writeCNIConflist writes the cocoon-dhcp CNI conflist if content has changed.
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 

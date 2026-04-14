@@ -68,6 +68,19 @@ func (s *leaseStore) isLeasedTo(mac net.HardwareAddr, ip net.IP) bool {
 	return ok && l.IP.Equal(ip) && time.Now().Before(l.Expiry)
 }
 
+// isLeasedToOther returns true if ip is actively leased to a different MAC.
+func (s *leaseStore) isLeasedToOther(mac net.HardwareAddr, ip net.IP) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	for k, l := range s.leases {
+		if l.IP.Equal(ip) && now.Before(l.Expiry) && k != mac.String() {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *leaseStore) activeLeases() []lease {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

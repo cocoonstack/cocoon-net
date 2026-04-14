@@ -56,14 +56,12 @@ func (p *ipPool) markUsed(ip net.IP) {
 	p.used[k] = true
 }
 
-// contains checks if an IP belongs to this pool (regardless of allocation state).
-func (p *ipPool) contains(ip net.IP) bool {
+// isFree checks if an IP is in the free (unallocated) set.
+func (p *ipPool) isFree(ip net.IP) bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	k := ipToUint32(ip.To4())
-	_, inFree := p.free[k]
-	_, inUsed := p.used[k]
-	return inFree || inUsed
+	_, ok := p.free[ipToUint32(ip.To4())]
+	return ok
 }
 
 // freeCount returns the number of unallocated IPs.

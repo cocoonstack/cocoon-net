@@ -43,6 +43,7 @@ GKE VPC (e.g. 10.0.0.0/8)
 
 ```bash
 sudo cocoon-net init \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140 \
@@ -55,7 +56,7 @@ This will:
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
 5. Configure `cni0` bridge, iptables, sysctl
-6. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
+6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
 7. Save pool state to `/var/lib/cocoon/net/pool.json`
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
@@ -66,6 +67,7 @@ For GKE nodes that were already provisioned by hand (alias IP range assigned, br
 
 ```bash
 sudo cocoon-net adopt \
+  --platform gke \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24
 ```
@@ -136,7 +138,7 @@ iptables -A FORWARD -i cni0 -o cni0 -j ACCEPT
 
 ### 7. DHCP
 
-DHCP is provided by `cocoon-net daemon` (embedded server). No external dnsmasq required. Host routes (/32) are managed dynamically on lease events.
+DHCP is provided by `cocoon-net daemon` (embedded server). No external DHCP server required. Host routes (/32) are managed dynamically on lease events.
 
 ```bash
 # Start the daemon (or use systemd unit)
@@ -146,10 +148,10 @@ cocoon-net daemon
 ### 8. CNI conflist
 
 ```bash
-cat > /etc/cni/net.d/30-dnsmasq-dhcp.conflist <<'EOF'
+cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
 {
   "cniVersion": "1.0.0",
-  "name": "dnsmasq-dhcp",
+  "name": "cocoon-dhcp",
   "plugins": [
     {
       "type": "bridge",

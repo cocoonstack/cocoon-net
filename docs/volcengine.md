@@ -73,6 +73,7 @@ Volcengine VPC (172.20.0.0/16)
 
 ```bash
 sudo cocoon-net init \
+  --platform volcengine \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24 \
   --pool-size 140 \
@@ -86,7 +87,7 @@ This will:
 4. Assign 20 secondary private IPs per ENI (140 total)
 5. Bring up `eth1`–`eth7` interfaces
 6. Configure `cni0` bridge, iptables, sysctl
-7. Write CNI conflist to `/etc/cni/net.d/30-dnsmasq-dhcp.conflist`
+7. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
 8. Save pool state to `/var/lib/cocoon/net/pool.json`
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
@@ -97,6 +98,7 @@ For EBM nodes that already have secondary ENIs and IPs provisioned by hand, use 
 
 ```bash
 sudo cocoon-net adopt \
+  --platform volcengine \
   --node-name cocoon-pool \
   --subnet 172.20.100.0/24
 ```
@@ -197,7 +199,7 @@ for eni in d.get('Result', {}).get('NetworkInterfaceSets', []):
 
 ### 5. DHCP
 
-DHCP is provided by `cocoon-net daemon` (embedded server). No external dnsmasq required. Host routes (/32) are managed dynamically on lease events.
+DHCP is provided by `cocoon-net daemon` (embedded server). No external DHCP server required. Host routes (/32) are managed dynamically on lease events.
 
 ```bash
 # Start the daemon (or use systemd unit)
@@ -269,6 +271,7 @@ For new nodes:
 2. Run on the new node:
    ```bash
    sudo cocoon-net init \
+     --platform volcengine \
      --node-name cocoon-pool-N \
      --subnet 172.20.N.0/24 \
      --pool-size 140
@@ -279,6 +282,7 @@ For existing hand-provisioned nodes, use `adopt` instead of `init`:
 
 ```bash
 sudo cocoon-net adopt \
+  --platform volcengine \
   --node-name cocoon-pool-N \
   --subnet 172.20.N.0/24
 ```

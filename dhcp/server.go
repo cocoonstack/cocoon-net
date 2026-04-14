@@ -15,6 +15,7 @@ import (
 const (
 	defaultLeaseTime     = 24 * time.Hour
 	leaseCleanupInterval = time.Minute
+	offerTimeout         = 60 * time.Second
 )
 
 // Config holds DHCP server parameters.
@@ -33,6 +34,7 @@ type Server struct {
 	conf   Config
 	pool   *ipPool
 	leases *leaseStore
+	offers *pendingOffers
 	srv    *server4.Server
 
 	mu      sync.Mutex
@@ -49,6 +51,7 @@ func New(conf Config, ips []net.IP) *Server {
 		conf:   conf,
 		pool:   newIPPool(ips),
 		leases: newLeaseStore(conf.LeaseFile),
+		offers: newPendingOffers(offerTimeout),
 	}
 }
 
@@ -120,17 +123,21 @@ func (s *Server) handler(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4)
 func (s *Server) handleDiscover(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
 	logger := log.WithFunc("dhcp.handleDiscover")
 
-	// Re-offer existing lease; otherwise allocate a new IP.
+	// Re-offer existing lease first.
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
+		// Check if we already have a pending offer for this MAC.
+		ip = s.offers.ipForMAC(mac)
+	}
+	if ip == nil {
+		// Allocate a new IP from the free pool.
 		ip = s.pool.allocate()
 		if ip == nil {
 			logger.Warnf(s.ctx, "DISCOVER from %s: pool exhausted", mac)
 			return
 		}
-		// Track the offered IP immediately so a concurrent DISCOVER
-		// for another MAC does not hand out the same address.
-		s.pool.markUsed(ip)
+		// Track as pending offer (not yet committed as lease).
+		s.offers.add(mac, ip)
 	}
 
 	resp, err := s.buildReply(msg, dhcpv4.MessageTypeOffer, ip)
@@ -158,18 +165,24 @@ func (s *Server) handleRequest(conn net.PacketConn, peer net.Addr, msg *dhcpv4.D
 		return
 	}
 
-	// Validate the requested IP is in our pool or already leased to this MAC.
-	if !s.pool.contains(reqIP) && !s.leases.isLeasedTo(mac, reqIP) {
+	// Validate: the IP must be either free, offered to this MAC, or already
+	// leased to this MAC. Reject if it's leased to a different MAC.
+	if s.leases.isLeasedToOther(mac, reqIP) {
 		s.sendNAK(conn, peer, msg)
-		logger.Warnf(s.ctx, "NAK %s -> %s (not in pool)", reqIP, mac)
+		logger.Warnf(s.ctx, "NAK %s -> %s (leased to another client)", reqIP, mac)
+		return
+	}
+	if !s.pool.isFree(reqIP) && !s.offers.isOfferedTo(mac, reqIP) && !s.leases.isLeasedTo(mac, reqIP) {
+		s.sendNAK(conn, peer, msg)
+		logger.Warnf(s.ctx, "NAK %s -> %s (not available)", reqIP, mac)
 		return
 	}
 
-	// Commit lease.
+	// Commit: move from pending/free to leased.
+	s.offers.remove(mac)
 	s.pool.markUsed(reqIP)
 	s.leases.add(mac, reqIP, s.conf.LeaseTime)
 
-	// Add /32 host route.
 	if err := addRoute(reqIP, s.conf.Interface); err != nil {
 		logger.Warnf(s.ctx, "add route %s: %v", reqIP, err)
 	}
@@ -251,7 +264,7 @@ func (s *Server) restoreLeases(ctx context.Context) {
 	}
 }
 
-// cleanupLoop periodically removes expired leases and their routes.
+// cleanupLoop periodically removes expired leases and abandoned offers.
 func (s *Server) cleanupLoop(ctx context.Context) {
 	logger := log.WithFunc("dhcp.cleanup")
 	ticker := time.NewTicker(leaseCleanupInterval)
@@ -262,6 +275,13 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// Reclaim abandoned offers.
+			for _, ip := range s.offers.expireOld() {
+				s.pool.release(ip)
+				logger.Infof(ctx, "reclaimed abandoned offer %s", ip)
+			}
+
+			// Expire old leases.
 			expired := s.leases.expireOld()
 			for _, l := range expired {
 				s.pool.release(l.IP)
