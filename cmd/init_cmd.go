@@ -71,8 +71,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	nodeCfg := &node.Config{
 		Gateway:    result.Gateway,
 		SubnetCIDR: result.SubnetCIDR,
-		IPs:        result.IPs,
-		DNSServers: cfg.DNSServers,
 		PrimaryNIC: result.PrimaryNIC,
 	}
 	if err := node.Setup(ctx, nodeCfg); err != nil {

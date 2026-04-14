@@ -98,13 +98,13 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		fmt.Println()
 		fmt.Println("would write:")
 		fmt.Println("  /etc/cni/net.d/30-dnsmasq-dhcp.conflist")
-		fmt.Println("  /etc/dnsmasq-cni.d/cni0.conf")
 		fmt.Printf("  %s/pool.json\n", flagStateDir)
 		iptablesPlan := "skipped (preserve existing rules)"
 		if flagManageIPTables {
 			iptablesPlan = "(re)applied"
 		}
-		fmt.Printf("would (re)apply: bridge cni0, sysctl, host routes, dnsmasq-cni restart; iptables %s\n", iptablesPlan)
+		fmt.Printf("would (re)apply: bridge cni0, sysctl; iptables %s\n", iptablesPlan)
+		fmt.Println("routes and DHCP managed by 'cocoon-net daemon'")
 		fmt.Println("would NOT touch: cloud alias IP range / ENIs (preserved as-is)")
 		return nil
 	}
@@ -112,8 +112,6 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	nodeCfg := &node.Config{
 		Gateway:      gateway,
 		SubnetCIDR:   flagSubnet,
-		IPs:          ips,
-		DNSServers:   dnsServers,
 		PrimaryNIC:   primaryNIC,
 		SkipIPTables: !flagManageIPTables,
 	}

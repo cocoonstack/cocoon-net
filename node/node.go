@@ -33,58 +33,40 @@ const (
 
 // Config holds parameters for node setup.
 type Config struct {
-	// Networking config
 	Gateway    string
 	SubnetCIDR string
-	DNSServers []string
 	PrimaryNIC string
 
-	// Resources
-	IPs []string
-
-	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules. Set this
-	// when adopting an existing manually-provisioned node whose firewall rules
-	// were tuned by hand and where cocoon-net's MASQUERADE would change the
-	// outbound source IP visible to peers (e.g. GKE alias-IP routing already
-	// makes per-VM source IPs reachable via the host NIC, and a blanket
-	// MASQUERADE rewrite would mask them as the host's own IP). Other steps
-	// (sysctl, bridge, routes, dnsmasq, CNI conflist) still run.
+	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
 }
 
-// Setup configures all node networking components in order:
-//  1. sysctl
-//  2. cni0 bridge
-//  3. host routes
-//  4. iptables
-//  5. dnsmasq
-//  6. CNI conflist
+// Setup configures host networking components (idempotent):
+//  1. cni0 bridge (must exist before sysctl sets per-interface params)
+//  2. sysctl (ip_forward, rp_filter)
+//  3. iptables FORWARD + NAT
+//  4. CNI conflist
+//
+// Host routes (/32) are NOT added here — they are managed dynamically
+// by the DHCP server when leases are granted/released.
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
 	secondaryNICs := detectSecondaryNICs()
 	logger.Infof(ctx, "detected secondary NICs: %v", secondaryNICs)
 
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, secondaryNICs); err != nil {
-		return fmt.Errorf("sysctl: %w", err)
-	}
-
 	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupRoutes(ctx, cfg.IPs); err != nil {
-		return fmt.Errorf("routes: %w", err)
+	if err := setupSysctl(ctx, cfg.PrimaryNIC, secondaryNICs); err != nil {
+		return fmt.Errorf("sysctl: %w", err)
 	}
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
 	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
-	}
-
-	if err := setupDNSMasq(ctx, cfg); err != nil {
-		return fmt.Errorf("dnsmasq: %w", err)
 	}
 
 	if err := writeCNIConflist(ctx); err != nil {

@@ -30,6 +30,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.AddCommand(newInitCmd())
 	rootCmd.AddCommand(newAdoptCmd())
+	rootCmd.AddCommand(newDaemonCmd())
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newTeardownCmd())
 
