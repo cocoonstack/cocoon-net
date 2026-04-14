@@ -28,28 +28,56 @@ func newPendingOffers(timeout time.Duration) *pendingOffers {
 	}
 }
 
-func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) {
+// add records a pending offer for mac. If this MAC already has a pending
+// offer for a different IP, the old IP is returned so the caller can
+// release it back to the pool.
+func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.offers[mac.String()] = &pendingOffer{
+	key := mac.String()
+	var oldIP net.IP
+	if old, ok := p.offers[key]; ok && !old.IP.Equal(ip.To4()) {
+		oldIP = old.IP
+	}
+	p.offers[key] = &pendingOffer{
 		IP:     ip.To4(),
 		Expiry: time.Now().Add(p.timeout),
 	}
+	return oldIP
 }
 
-func (p *pendingOffers) remove(mac net.HardwareAddr) {
+// remove deletes the pending offer for mac and returns the offered IP
+// so the caller can release it back to the pool. Returns nil if no
+// pending offer exists.
+func (p *pendingOffers) remove(mac net.HardwareAddr) net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	delete(p.offers, mac.String())
+	key := mac.String()
+	old, ok := p.offers[key]
+	if !ok {
+		return nil
+	}
+	delete(p.offers, key)
+	return old.IP
 }
 
-func (p *pendingOffers) ipForMAC(mac net.HardwareAddr) net.IP {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if o, ok := p.offers[mac.String()]; ok && time.Now().Before(o.Expiry) {
-		return o.IP
+// ipForMAC returns the offered IP if still valid. If the offer has expired,
+// it is removed and the IP is returned as the second value so the caller
+// can release it back to the pool.
+func (p *pendingOffers) ipForMAC(mac net.HardwareAddr) (active, expired net.IP) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	key := mac.String()
+	o, ok := p.offers[key]
+	if !ok {
+		return nil, nil
 	}
-	return nil
+	if time.Now().Before(o.Expiry) {
+		return o.IP, nil
+	}
+	// Expired — reclaim immediately instead of waiting for cleanupLoop.
+	delete(p.offers, key)
+	return nil, o.IP
 }
 
 func (p *pendingOffers) isOfferedTo(mac net.HardwareAddr, ip net.IP) bool {

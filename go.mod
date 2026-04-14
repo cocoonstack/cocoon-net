@@ -3,9 +3,11 @@ module github.com/cocoonstack/cocoon-net
 go 1.25.0
 
 require (
+	github.com/coreos/go-iptables v0.8.0
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
 	github.com/projecteru2/core v0.0.0-20241016125006-ff909eefe04c
 	github.com/spf13/cobra v1.10.2
+	github.com/vishvananda/netlink v1.3.1
 )
 
 require (
@@ -29,6 +31,7 @@ require (
 	github.com/rs/zerolog v1.29.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
+	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53 // indirect
 	golang.org/x/sys v0.39.0 // indirect

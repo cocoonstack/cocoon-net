@@ -3,7 +3,6 @@ package node
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 
@@ -11,31 +10,19 @@ import (
 )
 
 const (
-	maxSecondaryNICs = 7
+	// BridgeName is the Linux bridge used for VM networking.
+	BridgeName = "cni0"
 
-	cniConfDir     = "/etc/cni/net.d"
-	cniConfFile    = "30-cocoon-dhcp.conflist"
-	cniConfContent = `{
-  "cniVersion": "1.0.0",
-  "name": "cocoon-dhcp",
-  "plugins": [
-    {
-      "type": "bridge",
-      "bridge": "cni0",
-      "isGateway": false,
-      "ipMasq": false,
-      "ipam": {}
-    }
-  ]
-}
-`
+	cniConfDir  = "/etc/cni/net.d"
+	cniConfFile = "30-cocoon-dhcp.conflist"
 )
 
 // Config holds parameters for node setup.
 type Config struct {
-	Gateway    string
-	SubnetCIDR string
-	PrimaryNIC string
+	Gateway       string
+	SubnetCIDR    string
+	PrimaryNIC    string
+	SecondaryNICs []string // platform-provided (e.g. Volcengine eth1..eth7)
 
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
@@ -52,20 +39,21 @@ type Config struct {
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
-	secondaryNICs := detectSecondaryNICs()
-	logger.Infof(ctx, "detected secondary NICs: %v", secondaryNICs)
+	if len(cfg.SecondaryNICs) > 0 {
+		logger.Infof(ctx, "secondary NICs: %v", cfg.SecondaryNICs)
+	}
 
 	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, secondaryNICs); err != nil {
+	if err := setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs); err != nil {
 		return fmt.Errorf("sysctl: %w", err)
 	}
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
-	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, secondaryNICs); err != nil {
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
@@ -81,31 +69,34 @@ func Setup(ctx context.Context, cfg *Config) error {
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 
+	content := fmt.Sprintf(`{
+  "cniVersion": "1.0.0",
+  "name": "cocoon-dhcp",
+  "plugins": [
+    {
+      "type": "bridge",
+      "bridge": %q,
+      "isGateway": false,
+      "ipMasq": false,
+      "ipam": {}
+    }
+  ]
+}
+`, BridgeName)
+
 	if err := os.MkdirAll(cniConfDir, 0o750); err != nil {
 		return fmt.Errorf("create cni conf dir: %w", err)
 	}
 	confPath := filepath.Join(cniConfDir, cniConfFile)
 
-	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == cniConfContent { //nolint:gosec // known path
+	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == content { //nolint:gosec // known path
 		logger.Info(ctx, "CNI conflist unchanged, skipping write")
 		return nil
 	}
 
-	if err := os.WriteFile(confPath, []byte(cniConfContent), 0o644); err != nil { //nolint:gosec // readable config
+	if err := os.WriteFile(confPath, []byte(content), 0o644); err != nil { //nolint:gosec // readable config
 		return fmt.Errorf("write cni conflist: %w", err)
 	}
 	logger.Infof(ctx, "wrote CNI conflist to %s", confPath)
 	return nil
-}
-
-// detectSecondaryNICs returns the list of secondary NIC names (eth1..ethN) that exist.
-func detectSecondaryNICs() []string {
-	var nics []string
-	for i := 1; i <= maxSecondaryNICs; i++ {
-		name := fmt.Sprintf("eth%d", i)
-		if _, err := net.InterfaceByName(name); err == nil {
-			nics = append(nics, name)
-		}
-	}
-	return nics
 }

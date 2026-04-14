@@ -16,7 +16,9 @@ import (
 // on the adopt subcommand: by default adopt preserves the host's existing
 // firewall rules, and the operator must opt in with --manage-iptables to
 // have cocoon-net rewrite them.
-var flagManageIPTables bool
+var (
+	flagManageIPTables bool
+)
 
 func newAdoptCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -61,6 +63,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if primaryNIC == "" {
 		primaryNIC = platform.DefaultNIC(platformName)
 	}
+	secondaryNICs := platform.DefaultSecondaryNICs(platformName)
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")
@@ -92,10 +95,11 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	}
 
 	nodeCfg := &node.Config{
-		Gateway:      gateway,
-		SubnetCIDR:   flagSubnet,
-		PrimaryNIC:   primaryNIC,
-		SkipIPTables: !flagManageIPTables,
+		Gateway:       gateway,
+		SubnetCIDR:    flagSubnet,
+		PrimaryNIC:    primaryNIC,
+		SecondaryNICs: secondaryNICs,
+		SkipIPTables:  !flagManageIPTables,
 	}
 	if err := node.Setup(ctx, nodeCfg); err != nil {
 		return fmt.Errorf("node setup: %w", err)
@@ -103,13 +107,14 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	logger.Info(ctx, "node networking configured (adopted, cloud side untouched)")
 
 	state := &pool.State{
-		Platform:   platformName,
-		NodeName:   flagNodeName,
-		Subnet:     flagSubnet,
-		Gateway:    gateway,
-		PrimaryNIC: primaryNIC,
-		IPs:        ips,
-		StateDir:   flagStateDir,
+		Platform:      platformName,
+		NodeName:      flagNodeName,
+		Subnet:        flagSubnet,
+		Gateway:       gateway,
+		PrimaryNIC:    primaryNIC,
+		SecondaryNICs: secondaryNICs,
+		IPs:           ips,
+		StateDir:      flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)

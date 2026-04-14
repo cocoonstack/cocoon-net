@@ -21,7 +21,6 @@ import (
 const (
 	defaultLeaseFile = "/var/lib/cocoon/net/leases.json"
 	pidFile          = "/run/cocoon-net.pid"
-	cni0Bridge       = "cni0"
 )
 
 func newDaemonCmd() *cobra.Command {
@@ -68,10 +67,11 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		primaryNIC = platform.DefaultNIC(state.Platform)
 	}
 	if setupErr := node.Setup(ctx, &node.Config{
-		Gateway:      state.Gateway,
-		SubnetCIDR:   state.Subnet,
-		PrimaryNIC:   primaryNIC,
-		SkipIPTables: skipIPTables,
+		Gateway:       state.Gateway,
+		SubnetCIDR:    state.Subnet,
+		PrimaryNIC:    primaryNIC,
+		SecondaryNICs: state.SecondaryNICs,
+		SkipIPTables:  skipIPTables,
 	}); setupErr != nil {
 		return fmt.Errorf("node setup: %w", setupErr)
 	}
@@ -95,7 +95,7 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 
 	// Start DHCP server (blocks until ctx canceled).
 	srv := dhcp.New(dhcp.Config{
-		Interface:  cni0Bridge,
+		Interface:  node.BridgeName,
 		Gateway:    gateway,
 		SubnetMask: ipNet.Mask,
 		DNSServers: dnsIPs,

@@ -1,6 +1,6 @@
 # Volcengine VPC-Native Networking for Cocoon VM Nodes
 
-Make cocoon Windows/Linux VM pods directly routable within the Volcengine (火山引擎) VPC — no overlay, no iptables DNAT, no kubectl port-forward required for inter-VPC access.
+Make cocoon Windows/Linux VM pods directly routable within the Volcengine VPC — no overlay, no iptables DNAT, no kubectl port-forward required for inter-VPC access.
 
 ## Verified Result
 

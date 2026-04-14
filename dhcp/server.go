@@ -37,9 +37,10 @@ type Server struct {
 	offers *pendingOffers
 	srv    *server4.Server
 
-	mu      sync.Mutex
-	ctx     context.Context
-	stopped bool
+	linkIndex int // cached kernel interface index for route operations
+	mu        sync.Mutex
+	ctx       context.Context
+	stopped   bool
 }
 
 // New creates a DHCP server. IPs are the allocatable pool (excluding gateway).
@@ -60,6 +61,12 @@ func (s *Server) Run(ctx context.Context) error {
 	logger := log.WithFunc("dhcp.Run")
 
 	s.ctx = ctx
+
+	linkIdx, resolveErr := resolveLinkIndex(s.conf.Interface)
+	if resolveErr != nil {
+		return fmt.Errorf("resolve interface %s: %w", s.conf.Interface, resolveErr)
+	}
+	s.linkIndex = linkIdx
 
 	if err := s.leases.load(); err != nil {
 		logger.Warnf(ctx, "load leases: %v (starting fresh)", err)
@@ -127,7 +134,11 @@ func (s *Server) handleDiscover(conn net.PacketConn, peer net.Addr, msg *dhcpv4.
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
 		// Check if we already have a pending offer for this MAC.
-		ip = s.offers.ipForMAC(mac)
+		var staleIP net.IP
+		ip, staleIP = s.offers.ipForMAC(mac)
+		if staleIP != nil {
+			s.pool.release(staleIP)
+		}
 	}
 	if ip == nil {
 		// Allocate a new IP from the free pool.
@@ -137,7 +148,10 @@ func (s *Server) handleDiscover(conn net.PacketConn, peer net.Addr, msg *dhcpv4.
 			return
 		}
 		// Track as pending offer (not yet committed as lease).
-		s.offers.add(mac, ip)
+		// If this MAC had a stale offer for a different IP, release it.
+		if oldIP := s.offers.add(mac, ip); oldIP != nil {
+			s.pool.release(oldIP)
+		}
 	}
 
 	resp, err := s.buildReply(msg, dhcpv4.MessageTypeOffer, ip)
@@ -179,11 +193,14 @@ func (s *Server) handleRequest(conn net.PacketConn, peer net.Addr, msg *dhcpv4.D
 	}
 
 	// Commit: move from pending/free to leased.
-	s.offers.remove(mac)
+	// Release the offered IP back to pool if client requested a different one.
+	if oldIP := s.offers.remove(mac); oldIP != nil && !oldIP.Equal(reqIP) {
+		s.pool.release(oldIP)
+	}
 	s.pool.markUsed(reqIP)
 	s.leases.add(mac, reqIP, s.conf.LeaseTime)
 
-	if err := addRoute(reqIP, s.conf.Interface); err != nil {
+	if err := addRoute(reqIP, s.linkIndex); err != nil {
 		logger.Warnf(s.ctx, "add route %s: %v", reqIP, err)
 	}
 
@@ -213,7 +230,7 @@ func (s *Server) handleRelease(mac net.HardwareAddr) {
 	s.leases.remove(mac)
 	s.pool.release(ip)
 
-	if err := delRoute(ip, s.conf.Interface); err != nil {
+	if err := delRoute(ip, s.linkIndex); err != nil {
 		logger.Warnf(s.ctx, "del route %s: %v", ip, err)
 	}
 
@@ -255,7 +272,7 @@ func (s *Server) restoreLeases(ctx context.Context) {
 	active := s.leases.activeLeases()
 	for _, l := range active {
 		s.pool.markUsed(l.IP)
-		if err := addRoute(l.IP, s.conf.Interface); err != nil {
+		if err := addRoute(l.IP, s.linkIndex); err != nil {
 			logger.Warnf(ctx, "restore route %s: %v", l.IP, err)
 		}
 	}
@@ -285,7 +302,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 			expired := s.leases.expireOld()
 			for _, l := range expired {
 				s.pool.release(l.IP)
-				if err := delRoute(l.IP, s.conf.Interface); err != nil {
+				if err := delRoute(l.IP, s.linkIndex); err != nil {
 					logger.Warnf(ctx, "del expired route %s: %v", l.IP, err)
 				}
 				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
