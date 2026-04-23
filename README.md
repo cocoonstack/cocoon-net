@@ -21,6 +21,8 @@ VPC-native networking for [Cocoon](https://github.com/cocoonstack/cocoon) VM nod
 | GKE | VPC alias IP ranges (`gcloud`) | ~254 |
 | Volcengine | Dedicated subnet + secondary ENI IPs (`ve` CLI) | 140 (7 ENIs x 20) |
 
+> **GKE multi-node**: the secondary range `cocoon-pods` on the GCE subnet is shared across nodes. For clusters with more than one node, pre-create it with a CIDR that covers every node's `--subnet` (e.g. `172.20.0.0/16` spanning `172.20.100.0/24`, `172.20.101.0/24`, ...). If the range does not exist when `init` runs, cocoon-net creates it at the caller's `--subnet`, which works for single-node but makes subsequent nodes with different `--subnet` values fail fast. See [docs/gke.md](docs/gke.md#prerequisites).
+
 ## Architecture
 
 ```

@@ -39,6 +39,22 @@ GKE VPC (e.g. 10.0.0.0/8)
 - GCE instance service account with `roles/compute.networkAdmin` (or equivalent)
 - `gcloud` CLI installed on the node and authenticated (application default credentials or service account key)
 
+### Multi-node prerequisite: pre-create the shared secondary range
+
+cocoon-net uses a **single** secondary range named `cocoon-pods` on the node's GCE subnet as the pool from which per-instance `/24` aliases are allocated. The range name is fixed; the CIDR must cover **every** node's `--subnet`.
+
+For multi-node clusters, create this range **before** running `cocoon-net init` on any node:
+
+```bash
+gcloud compute networks subnets update <NODE_SUBNET> \
+  --region=<REGION> \
+  --add-secondary-ranges=cocoon-pods=172.20.0.0/16
+```
+
+`cocoon-net init` then verifies that the existing range covers the caller's `--subnet` (e.g. `172.20.100.0/24`) and reuses it. Running `init` without pre-creating the range still works for a **single-node** deployment — cocoon-net creates the range at the caller's `--subnet`, but a second node with a different `--subnet` will then fail fast with a clear diagnostic ("does not cover --subnet ...") instead of a cryptic `gcloud` error.
+
+Teardown only removes this node's per-instance alias; the shared secondary range is preserved and must be removed by the operator.
+
 ## Running cocoon-net init
 
 ```bash
@@ -52,7 +68,7 @@ sudo cocoon-net init \
 
 This will:
 1. Detect the GKE platform via GCE metadata
-2. Add the secondary range `cocoon-pods=172.20.100.0/24` to the node's subnet
+2. Verify the shared secondary range `cocoon-pods` on the node's subnet covers `--subnet` (creating it at `--subnet` if missing — see Prerequisites for multi-node)
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
 5. Configure `cni0` bridge, iptables, sysctl

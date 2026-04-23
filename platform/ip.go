@@ -79,3 +79,19 @@ func CIDRMask(cidr string) (network, mask string, err error) {
 	m := ipNet.Mask
 	return ipNet.IP.String(), fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3]), nil
 }
+
+// CIDRContainsCIDR reports whether outer contains inner (same network or a supernet).
+func CIDRContainsCIDR(outer, inner string) (bool, error) {
+	op, err := netip.ParsePrefix(outer)
+	if err != nil {
+		return false, fmt.Errorf("parse outer cidr %s: %w", outer, err)
+	}
+	ip, err := netip.ParsePrefix(inner)
+	if err != nil {
+		return false, fmt.Errorf("parse inner cidr %s: %w", inner, err)
+	}
+	if op.Bits() > ip.Bits() {
+		return false, nil
+	}
+	return op.Contains(ip.Masked().Addr()), nil
+}

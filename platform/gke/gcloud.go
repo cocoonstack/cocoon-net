@@ -2,12 +2,15 @@ package gke
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 const (
@@ -32,23 +35,77 @@ func gcloudRun(ctx context.Context, args ...string) ([]byte, error) {
 	return out, nil
 }
 
+// ensureSecondaryRange guarantees that the named secondary range on the GCE
+// subnet covers cidr. If the range already exists and is a superset of cidr,
+// it is reused as-is (multi-node deployments share one operator-managed
+// broader range). If the range exists with a CIDR that does not cover cidr,
+// the caller gets a diagnostic error up-front instead of a downstream
+// `--aliases` failure. If the range is missing, it is created at cidr — this
+// is the single-node cold-start path; multi-node operators are expected to
+// pre-create a broader range per docs/gke.md.
 func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr string) error {
-	out, err := gcloudRun(ctx,
-		"compute", "networks", "subnets", "update",
-		subnet,
-		"--project", project,
-		"--region", region,
-		fmt.Sprintf("--add-secondary-ranges=%s=%s", aliasRangeName, cidr),
+	logger := log.WithFunc("gke.ensureSecondaryRange")
+
+	existing, err := describeSecondaryRange(ctx, project, region, subnet, aliasRangeName)
+	if err != nil {
+		return fmt.Errorf("describe subnet %s: %w", subnet, err)
+	}
+
+	if existing != "" {
+		covers, err := platform.CIDRContainsCIDR(existing, cidr)
+		if err != nil {
+			return fmt.Errorf("compare existing range %s with %s: %w", existing, cidr, err)
+		}
+		if !covers {
+			return fmt.Errorf(
+				"secondary range %q on subnet %s is %s, which does not cover --subnet %s; expand the range or choose a --subnet inside it",
+				aliasRangeName, subnet, existing, cidr,
+			)
+		}
+		logger.Infof(ctx, "reusing secondary range %s=%s on subnet %s", aliasRangeName, existing, subnet)
+		return nil
+	}
+
+	logger.Infof(ctx,
+		"secondary range %s not found on subnet %s; creating with CIDR %s (multi-node clusters should pre-create a broader range, see docs/gke.md)",
+		aliasRangeName, subnet, cidr,
 	)
-	// NOTE: brittle stderr sniff — `gcloud` returns a non-zero exit when the
-	// secondary range already exists, and the only signal is the English
-	// substring "already exists" in combined output. Locale changes or CLI
-	// message tweaks will break this. Tied to the package-level SDK-migration
-	// TODO: subnetworks.Patch returns a typed googleapi.Error we can inspect.
-	if err != nil && !strings.Contains(string(out), "already exists") {
-		return fmt.Errorf("update subnet: %w", err)
+	if _, err := gcloudRun(ctx,
+		"compute", "networks", "subnets", "update", subnet,
+		"--project", project, "--region", region,
+		fmt.Sprintf("--add-secondary-ranges=%s=%s", aliasRangeName, cidr),
+	); err != nil {
+		return fmt.Errorf("create secondary range %s=%s: %w", aliasRangeName, cidr, err)
 	}
 	return nil
+}
+
+// describeSecondaryRange returns the CIDR of the named secondary range on the
+// GCE subnet, or "" if no range with that name exists.
+func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeName string) (string, error) {
+	out, err := gcloudRun(ctx,
+		"compute", "networks", "subnets", "describe", subnet,
+		"--project", project, "--region", region,
+		"--format", "json",
+	)
+	if err != nil {
+		return "", err
+	}
+	var desc struct {
+		SecondaryIPRanges []struct {
+			RangeName   string `json:"rangeName"`
+			IPCIDRRange string `json:"ipCidrRange"`
+		} `json:"secondaryIpRanges"`
+	}
+	if err := json.Unmarshal(out, &desc); err != nil {
+		return "", fmt.Errorf("parse subnet describe: %w", err)
+	}
+	for _, r := range desc.SecondaryIPRanges {
+		if r.RangeName == rangeName {
+			return r.IPCIDRRange, nil
+		}
+	}
+	return "", nil
 }
 
 func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) error {
