@@ -123,6 +123,42 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 	return nil
 }
 
+// aliasEntry is one row from a GCE instance's nic0 aliasIpRanges list.
+type aliasEntry struct {
+	RangeName   string `json:"subnetworkRangeName"`
+	IPCIDRRange string `json:"ipCidrRange"`
+}
+
+// describeNic0Aliases returns the alias IP ranges currently bound to nic0 on
+// the given instance. Returns an error if nic0 is missing from the describe
+// output (we just read metadata to confirm we're on the instance, so nic0
+// not appearing would mean something is seriously off).
+func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {
+	out, err := gcloudRun(ctx,
+		"compute", "instances", "describe", instance,
+		"--project", project, "--zone", zone,
+		"--format", "json",
+	)
+	if err != nil {
+		return nil, err
+	}
+	var desc struct {
+		NetworkInterfaces []struct {
+			Name          string       `json:"name"`
+			AliasIPRanges []aliasEntry `json:"aliasIpRanges"`
+		} `json:"networkInterfaces"`
+	}
+	if err := json.Unmarshal(out, &desc); err != nil {
+		return nil, fmt.Errorf("parse instance describe: %w", err)
+	}
+	for _, ni := range desc.NetworkInterfaces {
+		if ni.Name == "nic0" {
+			return ni.AliasIPRanges, nil
+		}
+	}
+	return nil, fmt.Errorf("nic0 not found on instance %s", instance)
+}
+
 // fixGuestAgentRoute removes the local route the GCE guest agent auto-installs
 // for alias ranges (which would otherwise black-hole traffic back to the VM)
 // and persists a reboot cron entry to re-apply the fix.
