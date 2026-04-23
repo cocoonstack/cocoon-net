@@ -74,14 +74,15 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	logger.Info(ctx, "node networking configured")
 
 	state := &pool.State{
-		Platform:      result.Platform,
-		NodeName:      cfg.NodeName,
-		Subnet:        result.SubnetCIDR,
-		Gateway:       result.Gateway,
-		PrimaryNIC:    result.PrimaryNIC,
-		SecondaryNICs: result.SecondaryNICs,
-		IPs:           result.IPs,
-		StateDir:      flagStateDir,
+		Platform:       result.Platform,
+		NodeName:       cfg.NodeName,
+		Subnet:         result.SubnetCIDR,
+		Gateway:        result.Gateway,
+		PrimaryNIC:     result.PrimaryNIC,
+		SecondaryNICs:  result.SecondaryNICs,
+		IPs:            result.IPs,
+		AliasRangeName: result.AliasRangeName,
+		StateDir:       flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)

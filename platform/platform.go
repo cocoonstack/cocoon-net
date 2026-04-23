@@ -48,8 +48,11 @@ type CloudPlatform interface {
 	ProvisionNetwork(ctx context.Context, cfg *Config) (*NetworkResult, error)
 	// Status returns current IP pool status.
 	Status(ctx context.Context) (*PoolStatus, error)
-	// Teardown removes cloud networking resources.
-	Teardown(ctx context.Context) error
+	// Teardown removes cloud networking resources belonging to this node.
+	// The caller passes in persisted state (alias range name, subnet CIDR,
+	// etc.) so platforms can remove exactly what they created without
+	// touching resources shared across nodes.
+	Teardown(ctx context.Context, cfg *TeardownConfig) error
 }
 
 // Config holds the parameters for network provisioning.
@@ -64,12 +67,26 @@ type Config struct {
 
 // NetworkResult is returned by ProvisionNetwork.
 type NetworkResult struct {
-	Platform      string
-	SubnetCIDR    string
-	Gateway       string
-	PrimaryNIC    string
-	SecondaryNICs []string // Volcengine: eth1..eth7; GKE: nil
-	IPs           []string
+	Platform       string
+	SubnetCIDR     string
+	Gateway        string
+	PrimaryNIC     string
+	SecondaryNICs  []string // Volcengine: eth1..eth7; GKE: nil
+	IPs            []string
+	AliasRangeName string // GKE: the GCE secondary range the alias came from; empty on other platforms
+}
+
+// TeardownConfig is the persisted-state snapshot Teardown needs to undo
+// exactly what this node claimed at init/adopt time.
+type TeardownConfig struct {
+	// AliasRangeName is the GCE secondary range the node's alias was bound
+	// from (GKE). Empty means "use platform default" — set for state written
+	// before this field existed, or for adopted nodes whose alias was
+	// provisioned manually.
+	AliasRangeName string
+	// SubnetCIDR is the per-node alias CIDR to remove (GKE) or, for
+	// Volcengine, informational only (teardown walks attached ENIs).
+	SubnetCIDR string
 }
 
 // PoolStatus holds live status information from the cloud platform.

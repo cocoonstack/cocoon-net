@@ -53,10 +53,11 @@ func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*plat
 	}
 
 	return &platform.NetworkResult{
-		Platform:   g.Name(),
-		SubnetCIDR: cfg.SubnetCIDR,
-		Gateway:    gateway,
-		IPs:        ips,
-		PrimaryNIC: primaryNIC,
+		Platform:       g.Name(),
+		SubnetCIDR:     cfg.SubnetCIDR,
+		Gateway:        gateway,
+		IPs:            ips,
+		PrimaryNIC:     primaryNIC,
+		AliasRangeName: aliasRangeName,
 	}, nil
 }

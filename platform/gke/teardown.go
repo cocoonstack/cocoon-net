@@ -5,10 +5,17 @@ import (
 	"fmt"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 // Teardown removes the alias IP range from the instance.
-func (g *GKE) Teardown(ctx context.Context) error {
+//
+// Precision pass (PR3) will filter current nic0 aliases and remove only the
+// one owned by this node; today the behavior is still the blunt `--aliases ""`
+// sweep, but the signature is already widened so callers persist the state
+// needed for precision removal.
+func (g *GKE) Teardown(ctx context.Context, _ *platform.TeardownConfig) error {
 	logger := log.WithFunc("gke.Teardown")
 	instance, zone, project, _, err := fetchMetadata(ctx)
 	if err != nil {

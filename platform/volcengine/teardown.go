@@ -6,12 +6,16 @@ import (
 	"time"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 const attachPropagationDelay = 4 * time.Second
 
 // Teardown detaches and deletes all secondary ENIs for this instance.
-func (v *Volcengine) Teardown(ctx context.Context) error {
+// cfg is ignored because Volcengine teardown walks whatever secondary ENIs
+// are currently attached rather than relying on persisted state.
+func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) error {
 	logger := log.WithFunc("volcengine.Teardown")
 
 	instanceID, err := fetchMeta(ctx, "/instance-id")

@@ -5,6 +5,8 @@ import (
 
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 func newTeardownCmd() *cobra.Command {
@@ -40,7 +42,11 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}
 
-	if err := plat.Teardown(ctx); err != nil {
+	td := &platform.TeardownConfig{
+		AliasRangeName: state.AliasRangeName,
+		SubnetCIDR:     state.Subnet,
+	}
+	if err := plat.Teardown(ctx, td); err != nil {
 		return fmt.Errorf("teardown: %w", err)
 	}
 	logger.Infof(ctx, "teardown complete for %s", state.Platform)

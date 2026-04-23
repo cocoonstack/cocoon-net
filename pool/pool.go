@@ -36,6 +36,14 @@ type State struct {
 	ENIIDs        []string `json:"eniIDs,omitempty"`
 	SubnetID      string   `json:"subnetID,omitempty"`
 
+	// AliasRangeName is the GCE secondary range name this node's alias IP was
+	// bound from (GKE only). Recorded at init time so teardown removes exactly
+	// the right alias entry without touching the shared range itself. Empty for
+	// platforms that do not use named secondary ranges and for adopted nodes
+	// where the name was not known at adopt time — teardown falls back to the
+	// platform default in that case.
+	AliasRangeName string `json:"aliasRangeName,omitempty"`
+
 	// timestamps
 	UpdatedAt time.Time `json:"updatedAt"`
 }
