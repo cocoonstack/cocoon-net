@@ -106,6 +106,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		PrimaryNIC:    primaryNIC,
 		SecondaryNICs: secondaryNICs,
 		IPs:           ips,
+		DNSServers:    dnsServers,
 		StateDir:      flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {

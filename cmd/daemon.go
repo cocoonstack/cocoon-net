@@ -18,8 +18,12 @@ import (
 const defaultLeaseFile = "/var/lib/cocoon/net/leases.json"
 
 var (
+	// fallbackDNSServers is used when pool.State.DNSServers is empty, i.e.
+	// state written before the field existed. New init/adopt runs always
+	// populate the field so post-migration state never hits this path.
+	fallbackDNSServers = []string{"8.8.8.8", "1.1.1.1"}
+
 	flagLeaseFile    string
-	flagDNSSlice     []string
 	flagSkipIPTables bool
 )
 
@@ -35,7 +39,6 @@ and removed when they expire.`,
 	}
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")
 	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "path to lease persistence file")
-	cmd.Flags().StringSliceVar(&flagDNSSlice, "dns", []string{"8.8.8.8", "1.1.1.1"}, "DNS servers for DHCP clients")
 	cmd.Flags().BoolVar(&flagSkipIPTables, "skip-iptables", false, "skip iptables setup (for pre-configured nodes)")
 	return cmd
 }
@@ -88,7 +91,12 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	if len(poolIPs) == 0 {
 		return fmt.Errorf("no valid IPs in pool")
 	}
-	dnsIPs := parseIPs(flagDNSSlice)
+	dnsList := state.DNSServers
+	if len(dnsList) == 0 {
+		logger.Warnf(ctx, "pool.json has no dnsServers (pre-migration state?); falling back to %v", fallbackDNSServers)
+		dnsList = fallbackDNSServers
+	}
+	dnsIPs := parseIPs(dnsList)
 
 	// Start DHCP server (blocks until ctx canceled).
 	srv := dhcp.New(dhcp.Config{

@@ -82,6 +82,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		SecondaryNICs:  result.SecondaryNICs,
 		IPs:            result.IPs,
 		AliasRangeName: result.AliasRangeName,
+		DNSServers:     dnsServers,
 		StateDir:       flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {

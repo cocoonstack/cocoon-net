@@ -44,6 +44,13 @@ type State struct {
 	// platform default in that case.
 	AliasRangeName string `json:"aliasRangeName,omitempty"`
 
+	// DNSServers is the list of DNS resolvers to hand out in DHCP replies.
+	// Captured at init/adopt time so the daemon serves what the operator
+	// specified rather than falling back to hardcoded defaults. Empty on
+	// state written before this field existed — daemon uses its built-in
+	// defaults in that case.
+	DNSServers []string `json:"dnsServers,omitempty"`
+
 	// timestamps
 	UpdatedAt time.Time `json:"updatedAt"`
 }
