@@ -70,7 +70,7 @@ func run() int {
 func newPlatform(ctx context.Context, name string) (platform.CloudPlatform, error) {
 	switch name {
 	case platform.PlatformGKE:
-		return &gke.GKE{}, nil
+		return gke.New(), nil
 	case platform.PlatformVolcengine:
 		return volcengine.New(ctx)
 	default:

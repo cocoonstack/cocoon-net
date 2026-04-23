@@ -14,26 +14,15 @@ import (
 const defaultStateDir = "/var/lib/cocoon/net"
 
 var (
-	// platform / node / subnet
-	flagPlatform string
-	flagNodeName string
-	flagSubnet   string
-
-	// pool
-	flagPoolSize int
-
-	// nic
+	flagPlatform   string
+	flagNodeName   string
+	flagSubnet     string
+	flagPoolSize   int
 	flagGateway    string
 	flagPrimaryNIC string
-
-	// dns
-	flagDNS string
-
-	// state
-	flagStateDir string
-
-	// debug / misc
-	flagDryRun bool
+	flagDNS        string
+	flagStateDir   string
+	flagDryRun     bool
 
 	// flagManageIPTables is the inverse of node.Config.SkipIPTables exposed only
 	// on the adopt subcommand: by default adopt preserves the host's existing

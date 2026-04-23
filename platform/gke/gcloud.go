@@ -40,6 +40,11 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 		"--region", region,
 		fmt.Sprintf("--add-secondary-ranges=%s=%s", aliasRangeName, cidr),
 	)
+	// NOTE: brittle stderr sniff — `gcloud` returns a non-zero exit when the
+	// secondary range already exists, and the only signal is the English
+	// substring "already exists" in combined output. Locale changes or CLI
+	// message tweaks will break this. Tied to the package-level SDK-migration
+	// TODO: subnetworks.Patch returns a typed googleapi.Error we can inspect.
 	if err != nil && !strings.Contains(string(out), "already exists") {
 		return fmt.Errorf("update subnet: %w", err)
 	}
@@ -64,17 +69,15 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 // fixGuestAgentRoute removes the local route the GCE guest agent auto-installs
 // for alias ranges (which would otherwise black-hole traffic back to the VM)
 // and persists a reboot cron entry to re-apply the fix.
+//
+// The in-process route delete uses netlink (see route_linux.go / route_stub.go)
+// so we never shell out to `ip route`. The cron fallback still uses `ip route`
+// because it runs at boot, well before our daemon.
 func fixGuestAgentRoute(ctx context.Context, nic, cidr string) error {
 	logger := log.WithFunc("gke.fixGuestAgentRoute")
-	logger.Debugf(ctx, "spawn external binary: ip route del local %s dev %s table local", cidr, nic)
 
-	//nolint:gosec // args from trusted config
-	del := exec.CommandContext(ctx, "ip", "route", "del",
-		"local", cidr, "dev", nic, "table", "local",
-	)
-	out, err := del.CombinedOutput()
-	if err != nil {
-		logger.Warnf(ctx, "del local route (ok if not found): %s", strings.TrimSpace(string(out)))
+	if err := delLocalAliasRoute(nic, cidr); err != nil {
+		logger.Warnf(ctx, "del local route (ok if not found): %v", err)
 	}
 
 	cron := fmt.Sprintf("@reboot root ip route del local %s dev %s table local 2>/dev/null || true\n", cidr, nic)

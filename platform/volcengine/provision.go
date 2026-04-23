@@ -15,7 +15,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 
 	primaryNIC := cfg.PrimaryNIC
 	if primaryNIC == "" {
-		primaryNIC = defaultNIC
+		primaryNIC = platform.DefaultNIC(v.Name())
 	}
 
 	vpcID, err := fetchMeta(ctx, "/vpc-id")
@@ -63,11 +63,13 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
-	// Bring up secondary interfaces via netlink.
+	// Bring up secondary interfaces via netlink. A failure here means the
+	// secondary NIC is down and its assigned IPs are unreachable, so the
+	// pool would hand out unusable addresses — fail fast instead.
 	for i := 1; i <= enisPerNode; i++ {
 		iface := fmt.Sprintf("eth%d", i)
 		if linkErr := bringLinkUp(iface); linkErr != nil {
-			logger.Warnf(ctx, "bring up %s: %v", iface, linkErr)
+			return nil, fmt.Errorf("bring up %s: %w", iface, linkErr)
 		}
 	}
 

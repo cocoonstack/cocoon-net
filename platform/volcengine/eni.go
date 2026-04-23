@@ -41,7 +41,17 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			"--InstanceId", instanceID,
 		)
 		if attachErr != nil {
-			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
+			// Attach failed — this ENI is not usable for IP assignment.
+			// Best-effort cleanup of the orphan ENI to avoid leaking quota;
+			// we only log the delete error because the attach failure is
+			// already the primary signal to the operator.
+			logger.Errorf(ctx, attachErr, "attach ENI %s", eniID)
+			if _, delErr := veRun(ctx, "vpc", "DeleteNetworkInterface",
+				"--NetworkInterfaceId", eniID,
+			); delErr != nil {
+				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
+			}
+			continue
 		}
 
 		time.Sleep(attachPropagationDelay)
