@@ -40,11 +40,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 			removed = true
 			continue
 		}
-		entry := a.IPCIDRRange
-		if a.RangeName != "" {
-			entry = a.RangeName + ":" + a.IPCIDRRange
-		}
-		kept = append(kept, entry)
+		kept = append(kept, a.String())
 	}
 
 	if !removed {

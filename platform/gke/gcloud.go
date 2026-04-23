@@ -125,6 +125,16 @@ type aliasEntry struct {
 	IPCIDRRange string `json:"ipCidrRange"`
 }
 
+// String renders the entry in the NAME:CIDR form gcloud expects for
+// `--aliases` and prints in describe output. Entries without a range name
+// come from the subnet's primary range and are passed as CIDR-only.
+func (a aliasEntry) String() string {
+	if a.RangeName == "" {
+		return a.IPCIDRRange
+	}
+	return a.RangeName + ":" + a.IPCIDRRange
+}
+
 // describeNic0Aliases returns the alias IP ranges currently bound to nic0
 // on the given instance; errors if nic0 is absent from the describe output.
 func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {

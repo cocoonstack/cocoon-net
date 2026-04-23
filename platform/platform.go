@@ -94,4 +94,7 @@ type PoolStatus struct {
 	SubnetID string
 	ENIIDs   []string
 	IPs      []string
+	// AliasRanges lists NAME:CIDR alias entries currently bound to the
+	// primary NIC (GKE). Empty on platforms that don't use named aliases.
+	AliasRanges []string
 }
