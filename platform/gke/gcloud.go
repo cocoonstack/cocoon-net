@@ -36,13 +36,9 @@ func gcloudRun(ctx context.Context, args ...string) ([]byte, error) {
 }
 
 // ensureSecondaryRange guarantees that the named secondary range on the GCE
-// subnet covers cidr. If the range already exists and is a superset of cidr,
-// it is reused as-is (multi-node deployments share one operator-managed
-// broader range). If the range exists with a CIDR that does not cover cidr,
-// the caller gets a diagnostic error up-front instead of a downstream
-// `--aliases` failure. If the range is missing, it is created at cidr — this
-// is the single-node cold-start path; multi-node operators are expected to
-// pre-create a broader range per docs/gke.md.
+// subnet covers cidr. An existing range that is a superset is reused; one
+// that does not cover cidr produces an up-front error; a missing range is
+// created at cidr (single-node cold-start path; see docs/gke.md).
 func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr string) error {
 	logger := log.WithFunc("gke.ensureSecondaryRange")
 
@@ -114,7 +110,7 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 		instance,
 		"--project", project,
 		"--zone", zone,
-		"--network-interface", "nic0",
+		"--network-interface", nic0Name,
 		fmt.Sprintf("--aliases=%s:%s", aliasRangeName, cidr),
 	)
 	if err != nil {
@@ -129,10 +125,8 @@ type aliasEntry struct {
 	IPCIDRRange string `json:"ipCidrRange"`
 }
 
-// describeNic0Aliases returns the alias IP ranges currently bound to nic0 on
-// the given instance. Returns an error if nic0 is missing from the describe
-// output (we just read metadata to confirm we're on the instance, so nic0
-// not appearing would mean something is seriously off).
+// describeNic0Aliases returns the alias IP ranges currently bound to nic0
+// on the given instance; errors if nic0 is absent from the describe output.
 func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {
 	out, err := gcloudRun(ctx,
 		"compute", "instances", "describe", instance,
@@ -152,11 +146,11 @@ func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([
 		return nil, fmt.Errorf("parse instance describe: %w", err)
 	}
 	for _, ni := range desc.NetworkInterfaces {
-		if ni.Name == "nic0" {
+		if ni.Name == nic0Name {
 			return ni.AliasIPRanges, nil
 		}
 	}
-	return nil, fmt.Errorf("nic0 not found on instance %s", instance)
+	return nil, fmt.Errorf("%s not found on instance %s", nic0Name, instance)
 }
 
 // fixGuestAgentRoute removes the local route the GCE guest agent auto-installs

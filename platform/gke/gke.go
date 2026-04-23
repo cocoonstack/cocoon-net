@@ -22,6 +22,7 @@ import (
 const (
 	metaBase       = "http://metadata.google.internal/computeMetadata/v1"
 	aliasRangeName = "cocoon-pods"
+	nic0Name       = "nic0"
 
 	detectionURL     = metaBase + "/instance/zone"
 	detectionTimeout = 2 * time.Second
