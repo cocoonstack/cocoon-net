@@ -34,6 +34,9 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runAdopt")
 
+	if err := resolvePlatform(ctx); err != nil {
+		return err
+	}
 	dnsServers := splitTrim(flagDNS, ",")
 
 	gateway := flagGateway

@@ -28,6 +28,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runInit")
 
+	if err := resolvePlatform(ctx); err != nil {
+		return err
+	}
 	dnsServers := splitTrim(flagDNS, ",")
 
 	cfg := &platform.Config{

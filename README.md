@@ -123,7 +123,7 @@ sudo cocoon-net teardown
 
 | Flag | Default | Description |
 |---|---|---|
-| `--platform` | (required) | Cloud platform (`gke` or `volcengine`) |
+| `--platform` | auto-detect | Cloud platform (`gke` or `volcengine`); auto-detected from instance metadata if omitted |
 | `--node-name` | (required) | Virtual node name |
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
 | `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |

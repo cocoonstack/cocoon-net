@@ -33,8 +33,7 @@ var (
 
 // registerCommonFlags binds the flags shared by init and adopt subcommands.
 func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
-	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine)")
-	_ = cmd.MarkFlagRequired("platform")
+	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine); auto-detected from instance metadata if omitted")
 	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
 	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
 	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")
@@ -55,6 +54,21 @@ func loadPoolState(ctx context.Context) (*pool.State, error) {
 		return nil, fmt.Errorf("load pool state: %w (run 'cocoon-net init' first)", err)
 	}
 	return state, nil
+}
+
+// resolvePlatform sets flagPlatform to an auto-detected value when it is
+// empty, so callers downstream (including dry-run output) see the resolved
+// name without re-running detection.
+func resolvePlatform(ctx context.Context) error {
+	if flagPlatform != "" {
+		return nil
+	}
+	detected, err := detectPlatform(ctx)
+	if err != nil {
+		return err
+	}
+	flagPlatform = detected
+	return nil
 }
 
 // splitTrim splits s by sep and trims whitespace from each element.
