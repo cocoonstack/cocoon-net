@@ -96,7 +96,7 @@ func (s *Server) Run(ctx context.Context) error {
 		s.mu.Unlock()
 		_ = srv.Close()
 		if err := s.leases.save(); err != nil {
-			logger.Errorf(ctx, err, "persist leases on shutdown")
+			logger.Error(ctx, err, "persist leases on shutdown")
 		}
 		logger.Info(ctx, "DHCP server stopped")
 		return nil

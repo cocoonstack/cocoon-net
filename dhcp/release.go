@@ -23,7 +23,7 @@ func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
 	}
 
 	if err := s.leases.save(); err != nil {
-		logger.Errorf(ctx, err, "persist leases after RELEASE")
+		logger.Error(ctx, err, "persist leases after RELEASE")
 	}
 	logger.Infof(ctx, "RELEASE %s <- %s", ip, mac)
 }

@@ -57,7 +57,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	}
 
 	if err := s.leases.save(); err != nil {
-		logger.Errorf(ctx, err, "persist leases after ACK")
+		logger.Error(ctx, err, "persist leases after ACK")
 	}
 	logger.Infof(ctx, "ACK %s -> %s", reqIP, mac)
 }

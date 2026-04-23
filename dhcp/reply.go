@@ -30,10 +30,10 @@ func (s *Server) sendNAK(ctx context.Context, conn net.PacketConn, peer net.Addr
 		dhcpv4.WithOption(dhcpv4.OptServerIdentifier(s.conf.Gateway)),
 	)
 	if err != nil {
-		logger.Errorf(ctx, err, "build NAK")
+		logger.Error(ctx, err, "build NAK")
 		return
 	}
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		logger.Errorf(ctx, err, "send NAK")
+		logger.Error(ctx, err, "send NAK")
 	}
 }

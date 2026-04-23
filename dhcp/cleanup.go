@@ -50,7 +50,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 			}
 			if len(expired) > 0 {
 				if err := s.leases.save(); err != nil {
-					logger.Errorf(ctx, err, "persist leases after cleanup")
+					logger.Error(ctx, err, "persist leases after cleanup")
 				}
 			}
 		}
