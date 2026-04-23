@@ -7,18 +7,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/projecteru2/core/log"
-	coretypes "github.com/projecteru2/core/types"
 	"github.com/spf13/cobra"
 
+	commonlog "github.com/cocoonstack/cocoon-common/log"
 	"github.com/cocoonstack/cocoon-net/platform"
 	"github.com/cocoonstack/cocoon-net/platform/gke"
 	"github.com/cocoonstack/cocoon-net/platform/volcengine"
 	"github.com/cocoonstack/cocoon-net/version"
-)
-
-const (
-	logLevelEnv = "COCOON_NET_LOG_LEVEL"
 )
 
 // NewRootCmd creates and returns the root cobra command with all subcommands registered.
@@ -49,13 +44,7 @@ func Execute() {
 func run() int {
 	ctx := context.Background()
 
-	logLevel := os.Getenv(logLevelEnv)
-	if logLevel == "" {
-		logLevel = "info"
-	}
-	if err := log.SetupLog(ctx, &coretypes.ServerLogConfig{Level: logLevel}, ""); err != nil {
-		log.WithFunc("cmd.run").Fatalf(ctx, err, "setup log: %v", err)
-	}
+	commonlog.Setup(ctx, "COCOON_NET_LOG_LEVEL")
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
