@@ -3,7 +3,9 @@ package pool
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -100,7 +102,7 @@ func Load(ctx context.Context, stateDir string) (*State, error) {
 func (s *State) Delete(ctx context.Context) error {
 	logger := log.WithFunc("pool.Delete")
 	path := filepath.Join(s.StateDir, poolFileName)
-	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("remove pool state %s: %w", path, err)
 	}
 	logger.Infof(ctx, "pool state deleted: %s", path)

@@ -3,7 +3,9 @@ package volcengine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -45,7 +47,7 @@ func loadEnv(ctx context.Context) (*envConfig, error) {
 	cfgPath := filepath.Join(home, ".volcengine", "config.json")
 	data, err := os.ReadFile(cfgPath) //nolint:gosec // standard config file path
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			logger.Debugf(ctx, "no volcengine config file at %s", cfgPath)
 			return cfg, nil
 		}
