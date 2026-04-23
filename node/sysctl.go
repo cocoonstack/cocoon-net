@@ -30,7 +30,7 @@ func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string)
 
 	for key, val := range settings {
 		path := filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/"))
-		if err := os.WriteFile(path, []byte(val), 0o644); err != nil { //nolint:gosec // sysctl tuning
+		if err := os.WriteFile(path, []byte(val), filePerm); err != nil { //nolint:gosec // sysctl tuning
 			return fmt.Errorf("write sysctl %s=%s: %w", key, val, err)
 		}
 	}

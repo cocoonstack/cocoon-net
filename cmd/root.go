@@ -17,7 +17,9 @@ import (
 	"github.com/cocoonstack/cocoon-net/version"
 )
 
-const logLevelEnv = "COCOON_NET_LOG_LEVEL"
+const (
+	logLevelEnv = "COCOON_NET_LOG_LEVEL"
+)
 
 // NewRootCmd creates and returns the root cobra command with all subcommands registered.
 func NewRootCmd() *cobra.Command {
@@ -52,7 +54,7 @@ func run() int {
 		logLevel = "info"
 	}
 	if err := log.SetupLog(ctx, &coretypes.ServerLogConfig{Level: logLevel}, ""); err != nil {
-		log.WithFunc("main").Fatalf(ctx, err, "setup log: %v", err)
+		log.WithFunc("cmd.run").Fatalf(ctx, err, "setup log: %v", err)
 	}
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
@@ -65,12 +67,12 @@ func run() int {
 }
 
 // newPlatform returns a CloudPlatform by name.
-func newPlatform(name string) (platform.CloudPlatform, error) {
+func newPlatform(ctx context.Context, name string) (platform.CloudPlatform, error) {
 	switch name {
 	case platform.PlatformGKE:
 		return &gke.GKE{}, nil
 	case platform.PlatformVolcengine:
-		return &volcengine.Volcengine{}, nil
+		return volcengine.New(ctx)
 	default:
 		return nil, fmt.Errorf("unknown platform: %s (valid: %s, %s)", name, platform.PlatformGKE, platform.PlatformVolcengine)
 	}

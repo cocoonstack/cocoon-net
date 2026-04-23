@@ -12,14 +12,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
-// flagManageIPTables is the inverse of node.Config.SkipIPTables exposed only
-// on the adopt subcommand: by default adopt preserves the host's existing
-// firewall rules, and the operator must opt in with --manage-iptables to
-// have cocoon-net rewrite them.
-var (
-	flagManageIPTables bool
-)
-
 func newAdoptCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "adopt",

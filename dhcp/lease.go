@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const leaseFilePerm = 0o644
+
 // lease represents a single DHCP lease.
 type lease struct {
 	MAC    net.HardwareAddr
@@ -126,7 +128,7 @@ func (s *leaseStore) save() error {
 	}
 	// Atomic write: temp file + rename to prevent corruption on crash.
 	tmp := s.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil { //nolint:gosec
+	if err := os.WriteFile(tmp, data, leaseFilePerm); err != nil { //nolint:gosec
 		return err
 	}
 	return os.Rename(tmp, s.filePath)

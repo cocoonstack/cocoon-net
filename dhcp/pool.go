@@ -3,6 +3,8 @@ package dhcp
 import (
 	"net"
 	"sync"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 // ipPool tracks which IPs from the fixed pool are free or in use.
@@ -15,7 +17,7 @@ type ipPool struct {
 func newIPPool(ips []net.IP) *ipPool {
 	free := make(map[uint32]net.IP, len(ips))
 	for _, ip := range ips {
-		free[ipToUint32(ip)] = ip.To4()
+		free[ipKey(ip)] = ip.To4()
 	}
 	return &ipPool{
 		free: free,
@@ -42,7 +44,7 @@ func (p *ipPool) release(ip net.IP) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	k := ipToUint32(ip.To4())
+	k := ipKey(ip)
 	delete(p.used, k)
 	p.free[k] = ip.To4()
 }
@@ -51,7 +53,7 @@ func (p *ipPool) release(ip net.IP) {
 func (p *ipPool) markUsed(ip net.IP) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	k := ipToUint32(ip.To4())
+	k := ipKey(ip)
 	delete(p.free, k)
 	p.used[k] = true
 }
@@ -60,7 +62,7 @@ func (p *ipPool) markUsed(ip net.IP) {
 func (p *ipPool) isFree(ip net.IP) bool {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	_, ok := p.free[ipToUint32(ip.To4())]
+	_, ok := p.free[ipKey(ip)]
 	return ok
 }
 
@@ -71,7 +73,12 @@ func (p *ipPool) freeCount() int {
 	return len(p.free)
 }
 
-func ipToUint32(ip net.IP) uint32 {
-	ip = ip.To4()
-	return uint32(ip[0])<<24 | uint32(ip[1])<<16 | uint32(ip[2])<<8 | uint32(ip[3]) //nolint:mnd
+// ipKey normalises an IPv4 net.IP (4-byte or 16-byte form) to its uint32
+// representation for use as a map key. Delegates to platform.IP4ToUint32
+// to keep a single source of truth.
+func ipKey(ip net.IP) uint32 {
+	if v4 := ip.To4(); v4 != nil {
+		return platform.IP4ToUint32(v4.String())
+	}
+	return 0
 }

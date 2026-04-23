@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,9 @@ const (
 
 	cniConfDir  = "/etc/cni/net.d"
 	cniConfFile = "30-cocoon-dhcp.conflist"
+
+	filePerm = 0o644
+	dirPerm  = 0o750
 )
 
 // Config holds parameters for node setup.
@@ -69,32 +73,36 @@ func Setup(ctx context.Context, cfg *Config) error {
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 
-	content := fmt.Sprintf(`{
-  "cniVersion": "1.0.0",
-  "name": "cocoon-dhcp",
-  "plugins": [
-    {
-      "type": "bridge",
-      "bridge": %q,
-      "isGateway": false,
-      "ipMasq": false,
-      "ipam": {}
-    }
-  ]
-}
-`, BridgeName)
+	conflist := map[string]any{
+		"cniVersion": "1.0.0",
+		"name":       "cocoon-dhcp",
+		"plugins": []map[string]any{
+			{
+				"type":      "bridge",
+				"bridge":    BridgeName,
+				"isGateway": false,
+				"ipMasq":    false,
+				"ipam":      map[string]any{},
+			},
+		},
+	}
+	encoded, err := json.MarshalIndent(conflist, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshal cni conflist: %w", err)
+	}
+	encoded = append(encoded, '\n')
 
-	if err := os.MkdirAll(cniConfDir, 0o750); err != nil {
+	if err := os.MkdirAll(cniConfDir, dirPerm); err != nil {
 		return fmt.Errorf("create cni conf dir: %w", err)
 	}
 	confPath := filepath.Join(cniConfDir, cniConfFile)
 
-	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == content { //nolint:gosec // known path
+	if existing, err := os.ReadFile(confPath); err == nil && string(existing) == string(encoded) { //nolint:gosec // known path
 		logger.Info(ctx, "CNI conflist unchanged, skipping write")
 		return nil
 	}
 
-	if err := os.WriteFile(confPath, []byte(content), 0o644); err != nil { //nolint:gosec // readable config
+	if err := os.WriteFile(confPath, encoded, filePerm); err != nil {
 		return fmt.Errorf("write cni conflist: %w", err)
 	}
 	logger.Infof(ctx, "wrote CNI conflist to %s", confPath)

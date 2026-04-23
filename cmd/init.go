@@ -50,7 +50,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	plat, err := newPlatform(flagPlatform)
+	plat, err := newPlatform(ctx, flagPlatform)
 	if err != nil {
 		return fmt.Errorf("init platform: %w", err)
 	}

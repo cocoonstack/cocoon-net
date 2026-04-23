@@ -5,8 +5,6 @@ import (
 
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
-
-	"github.com/cocoonstack/cocoon-net/pool"
 )
 
 func newStatusCmd() *cobra.Command {
@@ -25,12 +23,12 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runStatus")
 
-	state, err := pool.Load(ctx, flagStateDir)
+	state, err := loadPoolState(ctx)
 	if err != nil {
-		return fmt.Errorf("load pool state: %w", err)
+		return err
 	}
 
-	plat, err := newPlatform(state.Platform)
+	plat, err := newPlatform(ctx, state.Platform)
 	if err != nil {
 		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}
