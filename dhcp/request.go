@@ -51,7 +51,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// Commit: release any stale offer, promote the IP from free to leased.
+	// Commit lease state.
 	if oldIP := s.offers.remove(mac); oldIP != nil && !oldIP.Equal(reqIP) {
 		s.pool.release(oldIP)
 	}
