@@ -34,7 +34,7 @@ func (v *Volcengine) Teardown(ctx context.Context) error {
 			"--InstanceId", instanceID,
 		)
 		if detachErr != nil {
-			logger.Warnf(ctx, "detach ENI %s: %v (skipping delete)", eni.NetworkInterfaceID, detachErr)
+			logger.Errorf(ctx, detachErr, "detach ENI %s (skipping delete)", eni.NetworkInterfaceID)
 			continue
 		}
 
@@ -45,7 +45,7 @@ func (v *Volcengine) Teardown(ctx context.Context) error {
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 		)
 		if delErr != nil {
-			logger.Warnf(ctx, "delete ENI %s: %v", eni.NetworkInterfaceID, delErr)
+			logger.Errorf(ctx, delErr, "delete ENI %s", eni.NetworkInterfaceID)
 		} else {
 			logger.Infof(ctx, "deleted ENI %s", eni.NetworkInterfaceID)
 		}

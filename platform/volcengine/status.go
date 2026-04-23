@@ -4,15 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/projecteru2/core/log"
-
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 // Status returns the current ENI and IP status.
 func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
-	logger := log.WithFunc("volcengine.Status")
-
 	instanceID, err := fetchMeta(ctx, "/instance-id")
 	if err != nil {
 		return nil, fmt.Errorf("get instance id: %w", err)
@@ -20,8 +16,7 @@ func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
 
 	enis, err := listENIs(ctx, instanceID)
 	if err != nil {
-		logger.Warnf(ctx, "list ENIs: %v", err)
-		return &platform.PoolStatus{}, nil
+		return nil, fmt.Errorf("list ENIs: %w", err)
 	}
 
 	var eniIDs, ips []string

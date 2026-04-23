@@ -8,6 +8,11 @@ import (
 const (
 	PlatformGKE        = "gke"
 	PlatformVolcengine = "volcengine"
+
+	// volcengineSecondaryNICCount is the fixed number of secondary ENIs per
+	// Volcengine node (eth1..eth7). This matches the platform's default ENI
+	// quota per instance.
+	volcengineSecondaryNICCount = 7
 )
 
 // DefaultNIC returns the default primary NIC for a given platform.
@@ -25,7 +30,7 @@ func DefaultNIC(platformName string) string {
 func DefaultSecondaryNICs(platformName string) []string {
 	switch platformName {
 	case PlatformVolcengine:
-		nics := make([]string, 7) //nolint:mnd
+		nics := make([]string, volcengineSecondaryNICCount)
 		for i := range nics {
 			nics[i] = fmt.Sprintf("eth%d", i+1)
 		}

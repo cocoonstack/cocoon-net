@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/projecteru2/core/log"
@@ -65,7 +66,7 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
 	out, err := veRun(ctx, "vpc", "AssignPrivateIpAddresses",
 		"--NetworkInterfaceId", eniID,
-		"--SecondaryPrivateIpAddressCount", fmt.Sprintf("%d", count),
+		"--SecondaryPrivateIpAddressCount", strconv.Itoa(count),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("assign secondary IPs to %s: %w", eniID, err)
