@@ -36,10 +36,17 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 	if err != nil {
 		return "", "", "", "", fmt.Errorf("zone: %w", err)
 	}
-	// zoneURL format: "projects/PROJECT/zones/ZONE"
+	// zoneURL format: "projects/PROJECT_NUMBER/zones/ZONE". The PROJECT_NUMBER
+	// segment is the numeric project ID; gcloud commands like
+	// `compute instances describe` reject it and require the project ID
+	// (e.g. "simular-note"). Fetch the ID directly from the metadata server.
 	parts := strings.Split(zoneURL, "/")
 	zone = parts[len(parts)-1]
-	project = parts[1]
+
+	project, err = fetch("/project/project-id")
+	if err != nil {
+		return "", "", "", "", fmt.Errorf("project-id: %w", err)
+	}
 
 	subnetURL, err := fetch("/instance/network-interfaces/0/subnetwork")
 	if err != nil {
