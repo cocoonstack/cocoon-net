@@ -1,3 +1,6 @@
+// Package platform abstracts cloud-specific network provisioning behind a
+// common interface, with auto-detection and per-cloud implementations
+// (currently GKE and Volcengine).
 package platform
 
 import (

@@ -7,7 +7,8 @@ import (
 )
 
 func getSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
-	out, err := veRun(ctx, "vpc", "DescribeSecurityGroups",
+	out, err := veRun(
+		ctx, "vpc", "DescribeSecurityGroups",
 		"--VpcId", vpcID, "--PageSize", "1",
 	)
 	if err != nil {
@@ -30,7 +31,8 @@ func getSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
 }
 
 func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error) {
-	out, err := veRun(ctx, "vpc", "DescribeSubnets",
+	out, err := veRun(
+		ctx, "vpc", "DescribeSubnets",
 		"--VpcId", vpcID, "--PageSize", "100",
 	)
 	if err != nil {
@@ -58,7 +60,8 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error)
 		return "", fmt.Errorf("fetch zone: %w", err)
 	}
 
-	createOut, err := veRun(ctx, "vpc", "CreateSubnet",
+	createOut, err := veRun(
+		ctx, "vpc", "CreateSubnet",
 		"--VpcId", vpcID,
 		"--CidrBlock", cidr,
 		"--ZoneId", zone,

@@ -1,3 +1,4 @@
+// Package pool persists the cocoon-net IP allocation pool to disk.
 package pool
 
 import (

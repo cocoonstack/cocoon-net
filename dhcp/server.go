@@ -1,3 +1,5 @@
+// Package dhcp implements the cocoon-net DHCP server: in-memory leases,
+// IP pool management, and request/release handlers.
 package dhcp
 
 import (

@@ -1,3 +1,5 @@
+// Package node configures node-local networking: CNI conflist, sysctls, and
+// (optional) bridge / iptables setup for the cocoon DHCP pool.
 package node
 
 import (

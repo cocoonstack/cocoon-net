@@ -1,3 +1,4 @@
+// Package cmd wires cocoon-net cobra commands.
 package cmd
 
 import (

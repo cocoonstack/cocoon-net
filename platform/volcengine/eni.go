@@ -17,7 +17,8 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 	eniIDs := make([]string, 0, count)
 
 	for i := 1; i <= count; i++ {
-		out, err := veRun(ctx, "vpc", "CreateNetworkInterface",
+		out, err := veRun(
+			ctx, "vpc", "CreateNetworkInterface",
 			"--SubnetId", subnetID,
 			"--SecurityGroupIds.1", sgID,
 			"--NetworkInterfaceName", fmt.Sprintf("%s-eni-%d", prefix, i),
@@ -37,7 +38,8 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 
 		time.Sleep(createPropagationDelay)
 
-		_, attachErr := veRun(ctx, "vpc", "AttachNetworkInterface",
+		_, attachErr := veRun(
+			ctx, "vpc", "AttachNetworkInterface",
 			"--NetworkInterfaceId", eniID,
 			"--InstanceId", instanceID,
 		)
@@ -47,7 +49,8 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			// we only log the delete error because the attach failure is
 			// already the primary signal to the operator.
 			logger.Errorf(ctx, attachErr, "attach ENI %s", eniID)
-			if _, delErr := veRun(ctx, "vpc", "DeleteNetworkInterface",
+			if _, delErr := veRun(
+				ctx, "vpc", "DeleteNetworkInterface",
 				"--NetworkInterfaceId", eniID,
 			); delErr != nil {
 				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
@@ -64,7 +67,8 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 }
 
 func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
-	out, err := veRun(ctx, "vpc", "AssignPrivateIpAddresses",
+	out, err := veRun(
+		ctx, "vpc", "AssignPrivateIpAddresses",
 		"--NetworkInterfaceId", eniID,
 		"--SecondaryPrivateIpAddressCount", strconv.Itoa(count),
 	)
@@ -84,7 +88,8 @@ func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string,
 }
 
 func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error) {
-	out, err := veRun(ctx, "vpc", "DescribeNetworkInterfaces",
+	out, err := veRun(
+		ctx, "vpc", "DescribeNetworkInterfaces",
 		"--InstanceId", instanceID,
 		"--PageSize", "100",
 	)

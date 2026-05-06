@@ -62,11 +62,13 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 		return nil
 	}
 
-	logger.Infof(ctx,
+	logger.Infof(
+		ctx,
 		"secondary range %s not found on subnet %s; creating with CIDR %s (multi-node clusters should pre-create a broader range, see docs/gke.md)",
 		aliasRangeName, subnet, cidr,
 	)
-	if _, err := gcloudRun(ctx,
+	if _, err := gcloudRun(
+		ctx,
 		"compute", "networks", "subnets", "update", subnet,
 		"--project", project, "--region", region,
 		fmt.Sprintf("--add-secondary-ranges=%s=%s", aliasRangeName, cidr),
@@ -79,7 +81,8 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 // describeSecondaryRange returns the CIDR of the named secondary range on the
 // GCE subnet, or "" if no range with that name exists.
 func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeName string) (string, error) {
-	out, err := gcloudRun(ctx,
+	out, err := gcloudRun(
+		ctx,
 		"compute", "networks", "subnets", "describe", subnet,
 		"--project", project, "--region", region,
 		"--format", "json",
@@ -105,7 +108,8 @@ func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeN
 }
 
 func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) error {
-	_, err := gcloudRun(ctx,
+	_, err := gcloudRun(
+		ctx,
 		"compute", "instances", "network-interfaces", "update",
 		instance,
 		"--project", project,
@@ -138,7 +142,8 @@ func (a aliasEntry) String() string {
 // describeNic0Aliases returns the alias IP ranges currently bound to nic0
 // on the given instance; errors if nic0 is absent from the describe output.
 func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {
-	out, err := gcloudRun(ctx,
+	out, err := gcloudRun(
+		ctx,
 		"compute", "instances", "describe", instance,
 		"--project", project, "--zone", zone,
 		"--format", "json",
