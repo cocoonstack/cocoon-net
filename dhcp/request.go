@@ -56,7 +56,9 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		s.pool.release(oldIP)
 	}
 	s.pool.markUsed(reqIP)
-	s.leases.add(mac, reqIP, s.conf.LeaseTime)
+	if evicted := s.leases.add(mac, reqIP, s.conf.LeaseTime); len(evicted) > 0 {
+		logger.Warnf(ctx, "evicted stale lease(s) for %s held by %v while ACKing %s", reqIP, evicted, mac)
+	}
 
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
 		// Route + lease are now committed; the client will re-REQUEST and

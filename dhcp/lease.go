@@ -38,14 +38,25 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) {
+// add commits a lease and evicts any other MAC's active entry for the same
+// IP. Returns evicted keys (empty under normal operation).
+func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
+	var evicted []string
+	for k, l := range s.leases {
+		if l.IP.Equal(ip) && k != mac.String() && now.Before(l.Expiry) {
+			delete(s.leases, k)
+			evicted = append(evicted, k)
+		}
+	}
 	s.leases[mac.String()] = &lease{
 		MAC:    mac,
 		IP:     ip.To4(),
 		Expiry: time.Now().Add(duration),
 	}
+	return evicted
 }
 
 func (s *leaseStore) remove(mac net.HardwareAddr) {
