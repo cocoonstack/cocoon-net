@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +11,13 @@ import (
 
 const procSysBase = "/proc/sys"
 
-func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string) error {
+// setupSysctl applies the cocoon-net sysctl tuning. Failures on
+// individual keys are logged and skipped — per-interface keys can
+// vanish out-of-band when an ENI is detached, and aborting startup
+// on the first stale key would leave the daemon unrunnable. The
+// iptables/route layer will surface a real connectivity problem if
+// one matters.
+func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string) {
 	logger := log.WithFunc("node.setupSysctl")
 
 	settings := map[string]string{
@@ -31,9 +36,9 @@ func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string)
 	for key, val := range settings {
 		path := filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/"))
 		if err := os.WriteFile(path, []byte(val), filePerm); err != nil { //nolint:gosec // sysctl tuning
-			return fmt.Errorf("write sysctl %s=%s: %w", key, val, err)
+			logger.Warnf(ctx, "write sysctl %s=%s: %v (continuing)", key, val, err)
+			continue
 		}
 	}
 	logger.Info(ctx, "sysctl parameters applied")
-	return nil
 }

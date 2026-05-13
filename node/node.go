@@ -53,9 +53,7 @@ func Setup(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs); err != nil {
-		return fmt.Errorf("sysctl: %w", err)
-	}
+	setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs)
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
