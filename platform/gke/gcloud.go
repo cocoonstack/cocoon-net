@@ -129,8 +129,15 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 		}
 	}
 
+	// Drop any existing entry under our range name (stale cidr from a
+	// previous --subnet) so we replace rather than accumulate; keep
+	// operator-managed entries under other range names.
 	merged := make([]string, 0, len(current)+1)
 	for _, a := range current {
+		if a.RangeName == aliasRangeName {
+			logger.Infof(ctx, "replacing stale %s:%s on %s", aliasRangeName, a.IPCIDRRange, instance)
+			continue
+		}
 		merged = append(merged, a.String())
 	}
 	merged = append(merged, fmt.Sprintf("%s:%s", aliasRangeName, cidr))

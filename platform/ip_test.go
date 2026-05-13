@@ -100,6 +100,30 @@ func TestSubnetIPs_IPv6IsError(t *testing.T) {
 	}
 }
 
+func TestSubnetIPs_GatewayOutsideCIDRIsError(t *testing.T) {
+	t.Parallel()
+
+	if _, err := SubnetIPs("10.0.0.0/24", "10.0.1.1", 4); err == nil {
+		t.Fatalf("gateway outside cidr must error")
+	}
+}
+
+func TestSubnetIPs_GatewayEqualsNetworkIsError(t *testing.T) {
+	t.Parallel()
+
+	if _, err := SubnetIPs("10.0.0.0/24", "10.0.0.0", 4); err == nil {
+		t.Fatalf("gateway == network address must error")
+	}
+}
+
+func TestSubnetIPs_GatewayEqualsBroadcastIsError(t *testing.T) {
+	t.Parallel()
+
+	if _, err := SubnetIPs("10.0.0.0/24", "10.0.0.255", 4); err == nil {
+		t.Fatalf("gateway == broadcast must error")
+	}
+}
+
 func TestSubnetIPs_CountZero(t *testing.T) {
 	t.Parallel()
 

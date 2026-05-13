@@ -86,6 +86,14 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	var bcastBytes [4]byte
 	binary.BigEndian.PutUint32(bcastBytes[:], netUint|hostMask)
 	bcast := netip.AddrFrom4(bcastBytes)
+	network := prefix.Masked().Addr()
+
+	if !prefix.Contains(gwAddr) {
+		return nil, fmt.Errorf("gateway %s is outside cidr %s", gateway, cidr)
+	}
+	if gwAddr == network || gwAddr == bcast {
+		return nil, fmt.Errorf("gateway %s collides with network/broadcast of %s", gateway, cidr)
+	}
 
 	ips := make([]string, 0, count)
 	for addr := prefix.Masked().Addr().Next(); prefix.Contains(addr) && len(ips) < count; addr = addr.Next() {
