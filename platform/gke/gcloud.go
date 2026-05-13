@@ -107,19 +107,46 @@ func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeN
 	return "", nil
 }
 
+// assignAliasIP appends our alias entry to nic0 without clobbering
+// entries the operator (or another cocoon-net node, on a shared
+// instance) already configured. `gcloud ... update --aliases=...` is
+// a full replacement, so we describe the current alias list first,
+// merge our entry in if it's not already present, and write back the
+// union. If the entry is already there, the call is a no-op. Mirrors
+// the read-modify-write pattern in Teardown.
 func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) error {
-	_, err := gcloudRun(
+	logger := log.WithFunc("gke.assignAliasIP")
+
+	current, err := describeNic0Aliases(ctx, project, zone, instance)
+	if err != nil {
+		return fmt.Errorf("describe nic0 aliases: %w", err)
+	}
+
+	for _, a := range current {
+		if a.RangeName == aliasRangeName && a.IPCIDRRange == cidr {
+			logger.Infof(ctx, "alias %s:%s already bound to %s; skipping gcloud update", aliasRangeName, cidr, instance)
+			return nil
+		}
+	}
+
+	merged := make([]string, 0, len(current)+1)
+	for _, a := range current {
+		merged = append(merged, a.String())
+	}
+	merged = append(merged, fmt.Sprintf("%s:%s", aliasRangeName, cidr))
+
+	if _, err := gcloudRun(
 		ctx,
 		"compute", "instances", "network-interfaces", "update",
 		instance,
 		"--project", project,
 		"--zone", zone,
 		"--network-interface", nic0Name,
-		fmt.Sprintf("--aliases=%s:%s", aliasRangeName, cidr),
-	)
-	if err != nil {
+		"--aliases", strings.Join(merged, ";"),
+	); err != nil {
 		return fmt.Errorf("assign alias: %w", err)
 	}
+	logger.Infof(ctx, "added alias %s:%s to %s; %d alias(es) total", aliasRangeName, cidr, instance, len(merged))
 	return nil
 }
 
