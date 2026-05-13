@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -71,11 +72,17 @@ func resolvePlatform(ctx context.Context) error {
 	return nil
 }
 
-// splitTrim splits s by sep and trims whitespace from each element.
+// splitTrim splits s by sep, trims whitespace from each element, and
+// drops empties. Returns nil for an empty or whitespace-only input so
+// callers can distinguish "no values supplied" from "one empty value".
 func splitTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)
 	for i := range parts {
 		parts[i] = strings.TrimSpace(parts[i])
+	}
+	parts = slices.DeleteFunc(parts, func(p string) bool { return p == "" })
+	if len(parts) == 0 {
+		return nil
 	}
 	return parts
 }
