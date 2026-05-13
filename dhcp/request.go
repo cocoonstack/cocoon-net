@@ -71,8 +71,21 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	if oldIP := s.offers.remove(mac); oldIP != nil && !oldIP.Equal(reqIP) {
 		s.pool.release(oldIP)
 	}
-	if evicted := s.leases.add(mac, reqIP, s.conf.LeaseTime); len(evicted) > 0 {
-		logger.Warnf(ctx, "evicted stale lease(s) for %s held by %v while ACKing %s", reqIP, evicted, mac)
+	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
+		// Same MAC, different IP: the old IP's route + pool slot are
+		// orphaned by the silent overwrite — clean both up so the IP
+		// can be reissued and traffic for the old IP stops landing on
+		// our link. Other-MAC evictions for the same IP need no action
+		// (the route still describes valid state).
+		if e.MAC == mac.String() {
+			if err := delRoute(e.IP, s.linkIndex); err != nil {
+				logger.Errorf(ctx, err, "del orphan route %s after %s rebind to %s", e.IP, mac, reqIP)
+			}
+			s.pool.release(e.IP)
+			logger.Warnf(ctx, "rebound %s from %s to %s; released old IP", mac, e.IP, reqIP)
+			continue
+		}
+		logger.Warnf(ctx, "evicted stale lease for %s held by %s while ACKing %s", reqIP, e.MAC, mac)
 	}
 
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {

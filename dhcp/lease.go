@@ -38,23 +38,57 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-// add commits a lease and evicts any other MAC's active entry for the same
-// IP. Returns evicted keys (empty under normal operation).
-func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []string {
+// evictedLease describes a lease entry displaced by a call to add().
+// Two displacements can happen:
+//   - the new MAC previously had a lease for a DIFFERENT IP (same-MAC
+//     overwrite). The old IP's route is now orphaned and the IP is
+//     stranded in pool.used until cleanupLoop notices the original
+//     expiry — except cleanupLoop never will, because the entry was
+//     silently overwritten in the map.
+//   - another MAC holds an active lease for the SAME IP we are now
+//     committing (a leftover from a TOCTOU window before tryClaim).
+//     The other MAC's lease entry is dropped; the route can stay
+//     because the IP is still leased to this MAC.
+//
+// The caller decides which to act on: same-MAC-with-different-IP needs
+// both delRoute(IP) and pool.release(IP); same-IP-different-MAC needs
+// neither because pool.used and the route still describe valid state.
+type evictedLease struct {
+	MAC string
+	IP  net.IP
+}
+
+// add commits a lease, returning any prior lease entries it displaced.
+// See evictedLease for the two displacement cases.
+func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
-	var evicted []string
+	key := mac.String()
+	newIP := ip.To4()
+	var evicted []evictedLease
+
+	// Same MAC, different IP: a previous lease for this MAC was about
+	// to be silently overwritten. Surface it so the caller can clean
+	// up the stranded /32 route and pool entry.
+	if prev, ok := s.leases[key]; ok && !prev.IP.Equal(newIP) {
+		evicted = append(evicted, evictedLease{MAC: key, IP: prev.IP})
+	}
+
+	// Other MAC, same IP: another client's lease conflicts with the
+	// IP we are committing. Drop it so isLeasedToOther stops reporting
+	// the stale claim.
 	for k, l := range s.leases {
-		if l.IP.Equal(ip) && k != mac.String() && now.Before(l.Expiry) {
+		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
 			delete(s.leases, k)
-			evicted = append(evicted, k)
+			evicted = append(evicted, evictedLease{MAC: k, IP: l.IP})
 		}
 	}
-	s.leases[mac.String()] = &lease{
+
+	s.leases[key] = &lease{
 		MAC:    mac,
-		IP:     ip.To4(),
-		Expiry: time.Now().Add(duration),
+		IP:     newIP,
+		Expiry: now.Add(duration),
 	}
 	return evicted
 }
