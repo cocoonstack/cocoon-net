@@ -39,13 +39,18 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				logger.Infof(ctx, "reclaimed abandoned offer %s", ip)
 			}
 
-			// Expire old leases.
+			// Expire old leases. Delete the /32 route BEFORE releasing
+			// the IP back to the pool — otherwise there is a tight
+			// window where a new DISCOVER can allocate the just-
+			// released IP, install its own route, and then have our
+			// late delRoute remove the brand-new route, black-holing
+			// the new lease's traffic.
 			expired := s.leases.expireOld()
 			for _, l := range expired {
-				s.pool.release(l.IP)
 				if err := delRoute(l.IP, s.linkIndex); err != nil {
 					logger.Errorf(ctx, err, "del expired route %s", l.IP)
 				}
+				s.pool.release(l.IP)
 				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
 			}
 			if len(expired) > 0 {

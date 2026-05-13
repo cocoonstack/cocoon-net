@@ -16,11 +16,14 @@ func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
 	}
 
 	s.leases.remove(mac)
-	s.pool.release(ip)
-
+	// Delete the /32 route before releasing the IP back to the pool;
+	// otherwise a concurrent DISCOVER could claim the IP and install
+	// its own route, which our late delRoute would then remove. See
+	// cleanupLoop for the same ordering.
 	if err := delRoute(ip, s.linkIndex); err != nil {
 		logger.Errorf(ctx, err, "del route %s", ip)
 	}
+	s.pool.release(ip)
 
 	if err := s.leases.save(); err != nil {
 		logger.Error(ctx, err, "persist leases after RELEASE")
