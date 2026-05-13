@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,7 @@ func TestState_SaveLoadRoundtrip(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	src := &State{
 		Platform:       "gke",
@@ -63,7 +62,7 @@ func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	good := &State{
 		Platform: "gke",
@@ -111,7 +110,7 @@ func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 func TestState_LoadMissingFile(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := Load(ctx, t.TempDir()); err == nil {
 		t.Fatalf("Load on empty dir must return error")
 	}
@@ -121,7 +120,7 @@ func TestState_Delete(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 	s := &State{
 		Platform: "gke",
 		NodeName: "n",
