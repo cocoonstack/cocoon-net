@@ -39,29 +39,21 @@ type State struct {
 	ENIIDs        []string `json:"eniIDs,omitempty"`
 	SubnetID      string   `json:"subnetID,omitempty"`
 
-	// AliasRangeName is the GCE secondary range name this node's alias IP was
-	// bound from (GKE only). Recorded at init time so teardown removes exactly
-	// the right alias entry without touching the shared range itself. Empty for
-	// platforms that do not use named secondary ranges and for adopted nodes
-	// where the name was not known at adopt time — teardown falls back to the
-	// platform default in that case.
+	// AliasRangeName is the GCE secondary range name (GKE only). Empty
+	// for other platforms and for adopted nodes — teardown then falls
+	// back to the platform default.
 	AliasRangeName string `json:"aliasRangeName,omitempty"`
 
-	// DNSServers is the list of DNS resolvers to hand out in DHCP replies.
-	// Captured at init/adopt time so the daemon serves what the operator
-	// specified rather than falling back to hardcoded defaults. Empty on
-	// state written before this field existed — daemon uses its built-in
-	// defaults in that case.
+	// DNSServers handed out in DHCP replies. Empty on state written
+	// before this field existed; daemon falls back to built-in defaults.
 	DNSServers []string `json:"dnsServers,omitempty"`
 
 	// timestamps
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Save writes the pool state to StateDir/pool.json atomically: data is
-// written to pool.json.tmp first and then renamed over pool.json so a
-// crash mid-write can leave behind a .tmp file but never a partially
-// written pool.json that Load would refuse to parse.
+// Save atomically writes the pool state via tmp+rename, so a crash
+// mid-write leaves a stale .tmp but never a partial pool.json.
 func (s *State) Save(ctx context.Context) error {
 	logger := log.WithFunc("pool.Save")
 
@@ -81,7 +73,6 @@ func (s *State) Save(ctx context.Context) error {
 		return fmt.Errorf("write pool state tmp: %w", err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		// Best-effort cleanup; the next Save will overwrite the tmp anyway.
 		_ = os.Remove(tmp)
 		return fmt.Errorf("rename pool state: %w", err)
 	}
@@ -89,9 +80,9 @@ func (s *State) Save(ctx context.Context) error {
 	return nil
 }
 
-// Load reads the pool state from stateDir/pool.json. A pool.json.tmp
-// from a crashed Save is intentionally ignored — Save commits via
-// rename, so .tmp is by definition incomplete.
+// Load reads the pool state from stateDir/pool.json. A leftover
+// pool.json.tmp is ignored — Save commits via rename, so .tmp is by
+// definition incomplete.
 func Load(ctx context.Context, stateDir string) (*State, error) {
 	logger := log.WithFunc("pool.Load")
 

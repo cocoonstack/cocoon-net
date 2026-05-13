@@ -107,13 +107,9 @@ func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeN
 	return "", nil
 }
 
-// assignAliasIP appends our alias entry to nic0 without clobbering
-// entries the operator (or another cocoon-net node, on a shared
-// instance) already configured. `gcloud ... update --aliases=...` is
-// a full replacement, so we describe the current alias list first,
-// merge our entry in if it's not already present, and write back the
-// union. If the entry is already there, the call is a no-op. Mirrors
-// the read-modify-write pattern in Teardown.
+// assignAliasIP merges our alias into nic0 via read-modify-write
+// (gcloud --aliases is a full replacement). No-op if our exact entry
+// is already present; stale entries under our range name are replaced.
 func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) error {
 	logger := log.WithFunc("gke.assignAliasIP")
 
@@ -129,9 +125,6 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 		}
 	}
 
-	// Drop any existing entry under our range name (stale cidr from a
-	// previous --subnet) so we replace rather than accumulate; keep
-	// operator-managed entries under other range names.
 	merged := make([]string, 0, len(current)+1)
 	for _, a := range current {
 		if a.RangeName == aliasRangeName {

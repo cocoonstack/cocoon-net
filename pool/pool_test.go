@@ -54,10 +54,7 @@ func TestState_SaveLoadRoundtrip(t *testing.T) {
 	}
 }
 
-// TestState_SaveAtomicTmpIgnored simulates a partial-write crash by
-// dropping a bogus pool.json.tmp next to a valid pool.json. Load must
-// read pool.json and ignore the .tmp; a subsequent Save must replace
-// the .tmp with a fresh one (then rename over pool.json).
+// A bogus pool.json.tmp must not interfere with Load or a subsequent Save.
 func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -76,7 +73,6 @@ func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 		t.Fatalf("save: %v", err)
 	}
 
-	// Pretend a previous Save crashed mid-write, leaving a partial .tmp.
 	tmp := filepath.Join(dir, poolFileName+".tmp")
 	if err := os.WriteFile(tmp, []byte("{not json"), 0o644); err != nil {
 		t.Fatalf("write fake tmp: %v", err)
@@ -89,12 +85,10 @@ func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 	if got.NodeName != "node-a" {
 		t.Errorf("Load picked up wrong file: NodeName=%q", got.NodeName)
 	}
-	// The bogus tmp is still there — Load must not have touched it.
 	if _, err := os.Stat(tmp); err != nil {
 		t.Errorf(".tmp should still exist after Load: %v", err)
 	}
 
-	// A subsequent Save must succeed and leave pool.json intact.
 	if err := got.Save(ctx); err != nil {
 		t.Fatalf("re-save: %v", err)
 	}
@@ -134,7 +128,6 @@ func TestState_Delete(t *testing.T) {
 	if err := s.Delete(ctx); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	// Idempotent — second delete must not error.
 	if err := s.Delete(ctx); err != nil {
 		t.Errorf("second Delete must be idempotent: %v", err)
 	}

@@ -29,15 +29,12 @@ const (
 
 var _ platform.CloudPlatform = (*Volcengine)(nil)
 
-// Volcengine implements CloudPlatform for Volcengine. Credentials and
-// region are loaded once at New() time and exported into the process
-// environment so the `ve` child binary inherits them. The Volcengine
-// struct itself stays empty — `ve` is the only consumer of those values
-// and it reads them from the env it inherits, not from this struct.
+// Volcengine implements CloudPlatform. The struct is empty: credentials
+// are loaded once at New() and exported as env vars for the `ve` child
+// binary, which is the only consumer.
 type Volcengine struct{}
 
-// New constructs a Volcengine platform handle, loading credentials from
-// env vars or ~/.volcengine/config.json exactly once.
+// New loads credentials from env or ~/.volcengine/config.json exactly once.
 func New(ctx context.Context) (*Volcengine, error) {
 	if err := loadEnv(ctx); err != nil {
 		return nil, fmt.Errorf("load volcengine env: %w", err)

@@ -32,9 +32,6 @@ func TestLeaseStore_AddNoEviction(t *testing.T) {
 	}
 }
 
-// A MAC that previously had IP-A is now leasing IP-B; the store must
-// surface IP-A so the caller can delRoute and pool.release it —
-// otherwise the route + pool slot are stranded.
 func TestLeaseStore_AddRebindSameMACDifferentIP(t *testing.T) {
 	t.Parallel()
 
@@ -60,8 +57,6 @@ func TestLeaseStore_AddRebindSameMACDifferentIP(t *testing.T) {
 	}
 }
 
-// TestLeaseStore_AddSameMACSameIP is the renewal path — same MAC, same
-// IP. No displacement should be reported.
 func TestLeaseStore_AddSameMACSameIP(t *testing.T) {
 	t.Parallel()
 
@@ -76,9 +71,6 @@ func TestLeaseStore_AddSameMACSameIP(t *testing.T) {
 	}
 }
 
-// TestLeaseStore_AddOtherMACSameIP is the TOCTOU-leftover path —
-// another MAC holds the same IP. The other MAC's lease must be
-// dropped and surfaced for logging.
 func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	t.Parallel()
 
@@ -99,7 +91,6 @@ func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	if !evicted[0].IP.Equal(ip) {
 		t.Errorf("evicted.IP=%s, want %s", evicted[0].IP, ip)
 	}
-	// macA's lease must be gone; macB now owns the IP.
 	if got := s.ipForMAC(macA); got != nil {
 		t.Errorf("macA should have no lease, got %s", got)
 	}
@@ -108,10 +99,8 @@ func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	}
 }
 
-// TestLeaseStore_AddOtherMACSameIPExpired: an expired other-MAC entry
-// for the same IP must NOT be reported as eviction (it's already
-// effectively gone), to avoid spurious delRoute traffic from the
-// caller.
+// An expired other-MAC entry must NOT be reported as eviction — that
+// would trigger spurious delRoute traffic from the caller.
 func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	t.Parallel()
 
@@ -120,7 +109,6 @@ func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	macB := mustMAC(t, "aa:bb:cc:dd:ee:02")
 	ip := net.ParseIP("10.0.0.10").To4()
 
-	// Force an expired entry for macA.
 	s.add(macA, ip, -time.Hour)
 
 	evicted := s.add(macB, ip, time.Hour)

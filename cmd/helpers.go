@@ -25,10 +25,8 @@ var (
 	flagStateDir   string
 	flagDryRun     bool
 
-	// flagManageIPTables is the inverse of node.Config.SkipIPTables exposed only
-	// on the adopt subcommand: by default adopt preserves the host's existing
-	// firewall rules, and the operator must opt in with --manage-iptables to
-	// have cocoon-net rewrite them.
+	// flagManageIPTables is the inverse of node.Config.SkipIPTables,
+	// exposed only on adopt (off by default to preserve host rules).
 	flagManageIPTables bool
 )
 
@@ -72,9 +70,8 @@ func resolvePlatform(ctx context.Context) error {
 	return nil
 }
 
-// splitTrim splits s by sep, trims whitespace from each element, and
-// drops empties. Returns nil for an empty or whitespace-only input so
-// callers can distinguish "no values supplied" from "one empty value".
+// splitTrim splits s by sep, trims each element, and drops empties.
+// Returns nil for empty or whitespace-only input.
 func splitTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)
 	for i := range parts {

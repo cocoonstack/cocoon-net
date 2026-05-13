@@ -6,13 +6,12 @@ import (
 	"sync"
 )
 
-// ipPool tracks which IPs from the fixed pool are free or in use. Map
-// keys are the 4-byte IPv4 packed into a uint32 — fast hashing, no
-// string conversion. Callers always pass net.IP via tryClaim/release/etc.
+// ipPool tracks which IPs are free or in use. Keys are the 4-byte
+// IPv4 packed into a uint32.
 type ipPool struct {
 	mu   sync.RWMutex
-	free map[uint32]net.IP   // IPs not yet leased
-	used map[uint32]struct{} // currently leased IPs (set semantics)
+	free map[uint32]net.IP
+	used map[uint32]struct{}
 }
 
 func newIPPool(ips []net.IP) *ipPool {
@@ -66,11 +65,9 @@ func (p *ipPool) markUsed(ip net.IP) {
 	p.used[k] = struct{}{}
 }
 
-// tryClaim atomically moves ip from free to used and returns true.
-// Returns false if ip is not in the free set (already claimed, or not
-// part of this pool). The whole check-and-commit happens under p.mu so
-// two concurrent REQUESTs racing for the same free IP can never both
-// win — exactly one observes the IP in free and removes it.
+// tryClaim atomically moves ip from free to used under p.mu, so two
+// concurrent REQUESTs for the same free IP cannot both win. Returns
+// false if ip is not currently free (already claimed or not in pool).
 func (p *ipPool) tryClaim(ip net.IP) bool {
 	v4 := ip.To4()
 	if v4 == nil {

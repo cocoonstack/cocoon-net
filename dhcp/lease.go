@@ -38,20 +38,15 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-// evictedLease describes a lease entry displaced by a call to add().
-// Two displacements can happen:
-//   - same MAC, DIFFERENT IP: the old IP's /32 route is orphaned and
-//     the IP stranded in pool.used. Caller must delRoute + release.
-//   - other MAC, SAME IP (TOCTOU leftover before tryClaim): the stale
-//     lease entry is dropped; route and pool.used still describe
-//     valid state for the winning MAC.
+// evictedLease describes a lease entry displaced by add(). Same-MAC
+// rebind leaves the old IP's route + pool slot orphaned; other-MAC
+// conflict is reported for logging.
 type evictedLease struct {
 	MAC string
 	IP  net.IP
 }
 
-// add commits a lease, returning any prior lease entries it displaced.
-// See evictedLease for the two displacement cases.
+// add commits a lease, returning any prior entries it displaced.
 func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,16 +55,12 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	newIP := ip.To4()
 	var evicted []evictedLease
 
-	// Same MAC, different IP: a previous lease for this MAC was about
-	// to be silently overwritten. Surface it so the caller can clean
-	// up the stranded /32 route and pool entry.
+	// Same MAC, different IP — surface the old IP so the caller can clean it up.
 	if prev, ok := s.leases[key]; ok && !prev.IP.Equal(newIP) {
 		evicted = append(evicted, evictedLease{MAC: key, IP: prev.IP})
 	}
 
-	// Other MAC, same IP: another client's lease conflicts with the
-	// IP we are committing. Drop it so isLeasedToOther stops reporting
-	// the stale claim.
+	// Other MAC, same IP — drop the conflicting active lease.
 	for k, l := range s.leases {
 		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
 			delete(s.leases, k)
