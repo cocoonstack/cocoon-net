@@ -29,22 +29,20 @@ const (
 
 var _ platform.CloudPlatform = (*Volcengine)(nil)
 
-// Volcengine implements CloudPlatform for Volcengine.
-//
-// Credentials and region are resolved once during New() — do not rely on
-// hidden per-call env initialisation.
-type Volcengine struct {
-	env *envConfig
-}
+// Volcengine implements CloudPlatform for Volcengine. Credentials and
+// region are loaded once at New() time and exported into the process
+// environment so the `ve` child binary inherits them. The Volcengine
+// struct itself stays empty — `ve` is the only consumer of those values
+// and it reads them from the env it inherits, not from this struct.
+type Volcengine struct{}
 
 // New constructs a Volcengine platform handle, loading credentials from
 // env vars or ~/.volcengine/config.json exactly once.
 func New(ctx context.Context) (*Volcengine, error) {
-	env, err := loadEnv(ctx)
-	if err != nil {
+	if err := loadEnv(ctx); err != nil {
 		return nil, fmt.Errorf("load volcengine env: %w", err)
 	}
-	return &Volcengine{env: env}, nil
+	return &Volcengine{}, nil
 }
 
 // Name returns the platform identifier.
