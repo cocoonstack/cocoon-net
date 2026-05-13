@@ -40,19 +40,11 @@ func newLeaseStore(filePath string) *leaseStore {
 
 // evictedLease describes a lease entry displaced by a call to add().
 // Two displacements can happen:
-//   - the new MAC previously had a lease for a DIFFERENT IP (same-MAC
-//     overwrite). The old IP's route is now orphaned and the IP is
-//     stranded in pool.used until cleanupLoop notices the original
-//     expiry — except cleanupLoop never will, because the entry was
-//     silently overwritten in the map.
-//   - another MAC holds an active lease for the SAME IP we are now
-//     committing (a leftover from a TOCTOU window before tryClaim).
-//     The other MAC's lease entry is dropped; the route can stay
-//     because the IP is still leased to this MAC.
-//
-// The caller decides which to act on: same-MAC-with-different-IP needs
-// both delRoute(IP) and pool.release(IP); same-IP-different-MAC needs
-// neither because pool.used and the route still describe valid state.
+//   - same MAC, DIFFERENT IP: the old IP's /32 route is orphaned and
+//     the IP stranded in pool.used. Caller must delRoute + release.
+//   - other MAC, SAME IP (TOCTOU leftover before tryClaim): the stale
+//     lease entry is dropped; route and pool.used still describe
+//     valid state for the winning MAC.
 type evictedLease struct {
 	MAC string
 	IP  net.IP

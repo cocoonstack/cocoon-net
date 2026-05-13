@@ -14,11 +14,10 @@ import (
 
 // loadEnv resolves Volcengine credentials and region from env vars
 // first, then from ~/.volcengine/config.json, and exports the result
-// back into the process environment so the `ve` child binary inherits
-// them. A missing home dir or config file is NOT an error — the
-// downstream `ve` CLI has its own fallbacks. Only os.Setenv side
-// effects are visible to callers; the function returns no value because
-// every consumer (currently only `ve`) reads the env directly.
+// into the process environment so the `ve` child binary inherits
+// them. A missing home dir or config file is NOT an error — `ve`
+// has its own fallbacks. Side-effect-only: every consumer reads
+// the env directly.
 func loadEnv(ctx context.Context) error {
 	logger := log.WithFunc("volcengine.loadEnv")
 

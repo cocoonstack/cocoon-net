@@ -32,10 +32,9 @@ func TestLeaseStore_AddNoEviction(t *testing.T) {
 	}
 }
 
-// TestLeaseStore_AddRebindSameMACDifferentIP exercises the case the
-// finding flags: a MAC that previously had IP-A is now leasing IP-B.
-// The store must surface the old IP-A so the caller can delRoute and
-// pool.release it — otherwise the IP-A route + pool slot are stranded.
+// A MAC that previously had IP-A is now leasing IP-B; the store must
+// surface IP-A so the caller can delRoute and pool.release it —
+// otherwise the route + pool slot are stranded.
 func TestLeaseStore_AddRebindSameMACDifferentIP(t *testing.T) {
 	t.Parallel()
 

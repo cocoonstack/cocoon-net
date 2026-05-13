@@ -51,15 +51,12 @@ func TestIPPool_TryClaimUnknownIP(t *testing.T) {
 	t.Parallel()
 
 	pool := newIPPool(parseIPs(t, "10.0.0.10"))
-	// 10.0.0.99 is not part of the pool — must not be claimable.
 	if pool.tryClaim(net.ParseIP("10.0.0.99")) {
 		t.Fatalf("tryClaim of out-of-pool IP must return false")
 	}
 }
 
-// TestIPPool_TryClaimRace simulates two concurrent REQUESTs racing for the
-// same free IP. Exactly one must win. With the old isFree+markUsed split,
-// both could pass isFree and double-commit; tryClaim makes this impossible.
+// Many goroutines race for the same free IP; exactly one must win.
 func TestIPPool_TryClaimRace(t *testing.T) {
 	t.Parallel()
 
@@ -94,10 +91,8 @@ func TestIPPool_TryClaimRace(t *testing.T) {
 	}
 }
 
-// TestIPPool_TryClaimRaceManyIPs is the wider race: every goroutine targets
-// the same IP from a pool of N entries; only one wins, the rest see "not
-// in free" and back off. Catches a regression where tryClaim might wrongly
-// claim a neighbour IP.
+// Wider race: many goroutines target one IP inside a multi-IP pool.
+// Guards against tryClaim wrongly claiming a neighbour entry.
 func TestIPPool_TryClaimRaceManyIPs(t *testing.T) {
 	t.Parallel()
 
@@ -139,7 +134,6 @@ func TestIPPool_MarkUsedAllocate(t *testing.T) {
 	if pool.freeCount() != 1 {
 		t.Fatalf("expect 1 free IP after markUsed, got %d", pool.freeCount())
 	}
-	// allocate should return the remaining 10.0.0.11.
 	ip := pool.allocate()
 	if !ip.Equal(net.ParseIP("10.0.0.11")) {
 		t.Fatalf("allocate returned %s, want 10.0.0.11", ip)
