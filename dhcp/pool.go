@@ -95,8 +95,8 @@ func (p *ipPool) freeCount() int {
 }
 
 // ipKey packs a 4-byte IPv4 into a uint32 map key. Callers must pass
-// the 4-byte form (use ip.To4()) — passing a 16-byte form would read
-// past the address bytes and produce a wrong key.
+// the 4-byte form (use ip.To4()); a 16-byte net.IP reads from the wrong
+// offset and yields a junk key.
 func ipKey(v4 net.IP) uint32 {
 	return binary.BigEndian.Uint32(v4)
 }

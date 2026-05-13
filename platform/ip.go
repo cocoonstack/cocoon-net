@@ -53,13 +53,9 @@ func FirstHostIP(cidr string) (string, error) {
 }
 
 // SubnetIPs returns up to count host IPs from the subnet, skipping
-// the gateway and the broadcast address.
-//
-// The gateway must parse as a valid IP; an empty or unparseable value
-// is an error rather than a silent "no gateway, every host is fair
-// game" — the caller almost always means to reserve one. Iteration
-// stops one address before the broadcast (network OR'd with the
-// inverted mask) so we never hand out the broadcast as a host IP.
+// the gateway and the broadcast address. The gateway must parse as a
+// valid IPv4 — an empty or malformed value is an error, not a silent
+// "no gateway, every host is fair game".
 func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
@@ -76,8 +72,7 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 		return nil, fmt.Errorf("gateway %s is not IPv4", gateway)
 	}
 
-	// Broadcast = network | ~mask. Compute it from the 4-byte form so
-	// iteration stops at the last host, not the broadcast itself.
+	// Broadcast = network | ~mask; computed so we can skip it during iteration.
 	netAddr := prefix.Masked().Addr().As4()
 	bits := prefix.Bits()
 	hostBits := uint32(32 - bits) //nolint:gosec // bits ∈ [0,32] from ParsePrefix
