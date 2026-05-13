@@ -119,6 +119,8 @@ cocoon-net status
 sudo cocoon-net teardown
 ```
 
+On `cocoon-net teardown`, both `pool.json` and the DHCP `leases.json` are removed.
+
 ## Flags
 
 | Flag | Default | Description |
