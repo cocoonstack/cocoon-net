@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -24,10 +25,8 @@ var (
 	flagStateDir   string
 	flagDryRun     bool
 
-	// flagManageIPTables is the inverse of node.Config.SkipIPTables exposed only
-	// on the adopt subcommand: by default adopt preserves the host's existing
-	// firewall rules, and the operator must opt in with --manage-iptables to
-	// have cocoon-net rewrite them.
+	// flagManageIPTables is the inverse of node.Config.SkipIPTables,
+	// exposed only on adopt (off by default to preserve host rules).
 	flagManageIPTables bool
 )
 
@@ -71,11 +70,16 @@ func resolvePlatform(ctx context.Context) error {
 	return nil
 }
 
-// splitTrim splits s by sep and trims whitespace from each element.
+// splitTrim splits s by sep, trims each element, and drops empties.
+// Returns nil for empty or whitespace-only input.
 func splitTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)
 	for i := range parts {
 		parts[i] = strings.TrimSpace(parts[i])
+	}
+	parts = slices.DeleteFunc(parts, func(p string) bool { return p == "" })
+	if len(parts) == 0 {
+		return nil
 	}
 	return parts
 }

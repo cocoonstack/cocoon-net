@@ -20,49 +20,60 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// Validate: the IP must be either free, offered to this MAC, or already
-	// leased to this MAC. Reject if it's leased to a different MAC.
 	if s.leases.isLeasedToOther(mac, reqIP) {
 		s.sendNAK(ctx, conn, peer, msg)
 		logger.Infof(ctx, "NAK %s -> %s (leased to another client)", reqIP, mac)
 		return
 	}
-	if !s.pool.isFree(reqIP) && !s.offers.isOfferedTo(mac, reqIP) && !s.leases.isLeasedTo(mac, reqIP) {
+
+	// tryClaim atomically moves free→used so two concurrent REQUESTs
+	// for the same free IP cannot both win; skipped when this MAC
+	// already holds the IP via a prior offer or active lease.
+	alreadyHeld := s.offers.isOfferedTo(mac, reqIP) || s.leases.isLeasedTo(mac, reqIP)
+	if !alreadyHeld && !s.pool.tryClaim(reqIP) {
 		s.sendNAK(ctx, conn, peer, msg)
 		logger.Infof(ctx, "NAK %s -> %s (not available)", reqIP, mac)
 		return
 	}
 
-	// Build the reply first. A buildReply failure here must not leave
-	// pool/lease state or a /32 route committed.
 	resp, err := s.buildReply(msg, dhcpv4.MessageTypeAck, reqIP)
 	if err != nil {
+		if !alreadyHeld {
+			s.pool.release(reqIP)
+		}
 		logger.Errorf(ctx, err, "build ACK for %s", mac)
 		return
 	}
 
-	// Install the /32 host route before committing lease state. Without the
-	// route the client would lease an IP that is not actually reachable via
-	// the host, so a route failure must abort the ACK. RouteReplace is
-	// idempotent, so a client re-REQUEST after a committed lease is safe.
+	// Install the /32 route before committing lease state — without it
+	// the client would lease an unreachable IP. RouteReplace is
+	// idempotent so client re-REQUESTs are safe.
 	if err := addRoute(reqIP, s.linkIndex); err != nil {
+		if !alreadyHeld {
+			s.pool.release(reqIP)
+		}
 		logger.Errorf(ctx, err, "add route %s; NAKing", reqIP)
 		s.sendNAK(ctx, conn, peer, msg)
 		return
 	}
 
-	// Commit lease state.
 	if oldIP := s.offers.remove(mac); oldIP != nil && !oldIP.Equal(reqIP) {
 		s.pool.release(oldIP)
 	}
-	s.pool.markUsed(reqIP)
-	if evicted := s.leases.add(mac, reqIP, s.conf.LeaseTime); len(evicted) > 0 {
-		logger.Warnf(ctx, "evicted stale lease(s) for %s held by %v while ACKing %s", reqIP, evicted, mac)
+	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
+		if e.MAC == mac.String() {
+			if err := delRoute(e.IP, s.linkIndex); err != nil {
+				logger.Errorf(ctx, err, "del orphan route %s after %s rebind to %s", e.IP, mac, reqIP)
+			}
+			s.pool.release(e.IP)
+			logger.Warnf(ctx, "rebound %s from %s to %s; released old IP", mac, e.IP, reqIP)
+			continue
+		}
+		logger.Warnf(ctx, "evicted stale lease for %s held by %s while ACKing %s", reqIP, e.MAC, mac)
 	}
 
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		// Route + lease are now committed; the client will re-REQUEST and
-		// hit the isLeasedTo branch above, which re-issues the ACK.
+		// Route + lease are committed; client will re-REQUEST and hit isLeasedTo.
 		logger.Errorf(ctx, err, "send ACK to %s (committed; awaiting client retry)", mac)
 		return
 	}

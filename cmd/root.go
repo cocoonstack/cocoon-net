@@ -46,7 +46,10 @@ func Execute() {
 func run() int {
 	ctx := context.Background()
 
-	commonlog.Setup(ctx, "COCOON_NET_LOG_LEVEL")
+	if err := commonlog.Setup(ctx, "COCOON_NET_LOG_LEVEL"); err != nil {
+		fmt.Fprintf(os.Stderr, "setup log: %v\n", err)
+		return 1
+	}
 
 	ctx, cancel := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

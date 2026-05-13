@@ -18,9 +18,7 @@ import (
 const defaultLeaseFile = "/var/lib/cocoon/net/leases.json"
 
 var (
-	// fallbackDNSServers is used when pool.State.DNSServers is empty, i.e.
-	// state written before the field existed. New init/adopt runs always
-	// populate the field so post-migration state never hits this path.
+	// fallbackDNSServers covers pre-migration state files without DNSServers.
 	fallbackDNSServers = []string{"8.8.8.8", "1.1.1.1"}
 
 	flagLeaseFile    string
@@ -62,7 +60,6 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	}
 	logger.Infof(ctx, "pool loaded: %d IPs, subnet %s, gateway %s", len(state.IPs), state.Subnet, state.Gateway)
 
-	// Setup host networking (idempotent).
 	primaryNIC := state.PrimaryNIC
 	if primaryNIC == "" {
 		primaryNIC = platform.DefaultNIC(state.Platform)
@@ -98,7 +95,6 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	}
 	dnsIPs := parseIPs(dnsList)
 
-	// Start DHCP server (blocks until ctx canceled).
 	srv := dhcp.New(dhcp.Config{
 		Interface:  node.BridgeName,
 		Gateway:    gateway,

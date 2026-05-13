@@ -16,11 +16,11 @@ func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
 	}
 
 	s.leases.remove(mac)
-	s.pool.release(ip)
-
+	// delRoute before release; see cleanupLoop for the ordering rationale.
 	if err := delRoute(ip, s.linkIndex); err != nil {
 		logger.Errorf(ctx, err, "del route %s", ip)
 	}
+	s.pool.release(ip)
 
 	if err := s.leases.save(); err != nil {
 		logger.Error(ctx, err, "persist leases after RELEASE")

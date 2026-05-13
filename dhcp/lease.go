@@ -38,23 +38,40 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-// add commits a lease and evicts any other MAC's active entry for the same
-// IP. Returns evicted keys (empty under normal operation).
-func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []string {
+// evictedLease describes a lease entry displaced by add(). Same-MAC
+// rebind leaves the old IP's route + pool slot orphaned; other-MAC
+// conflict is reported for logging.
+type evictedLease struct {
+	MAC string
+	IP  net.IP
+}
+
+// add commits a lease, returning any prior entries it displaced.
+func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
-	var evicted []string
+	key := mac.String()
+	newIP := ip.To4()
+	var evicted []evictedLease
+
+	// Same MAC, different IP — surface the old IP so the caller can clean it up.
+	if prev, ok := s.leases[key]; ok && !prev.IP.Equal(newIP) {
+		evicted = append(evicted, evictedLease{MAC: key, IP: prev.IP})
+	}
+
+	// Other MAC, same IP — drop the conflicting active lease.
 	for k, l := range s.leases {
-		if l.IP.Equal(ip) && k != mac.String() && now.Before(l.Expiry) {
+		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
 			delete(s.leases, k)
-			evicted = append(evicted, k)
+			evicted = append(evicted, evictedLease{MAC: k, IP: l.IP})
 		}
 	}
-	s.leases[mac.String()] = &lease{
+
+	s.leases[key] = &lease{
 		MAC:    mac,
-		IP:     ip.To4(),
-		Expiry: time.Now().Add(duration),
+		IP:     newIP,
+		Expiry: now.Add(duration),
 	}
 	return evicted
 }

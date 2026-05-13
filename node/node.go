@@ -34,14 +34,8 @@ type Config struct {
 	SkipIPTables bool
 }
 
-// Setup configures host networking components (idempotent):
-//  1. cni0 bridge (must exist before sysctl sets per-interface params)
-//  2. sysctl (ip_forward, rp_filter)
-//  3. iptables FORWARD + NAT
-//  4. CNI conflist
-//
-// Host routes (/32) are NOT added here — they are managed dynamically
-// by the DHCP server when leases are granted/released.
+// Setup configures host networking components (idempotent).
+// Order matters: cni0 bridge must exist before sysctl sets per-interface params.
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
@@ -71,7 +65,6 @@ func Setup(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-// writeCNIConflist writes the cocoon-dhcp CNI conflist if content has changed.
 func writeCNIConflist(ctx context.Context) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 
