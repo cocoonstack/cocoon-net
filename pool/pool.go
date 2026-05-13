@@ -58,7 +58,10 @@ type State struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-// Save writes the pool state to StateDir/pool.json.
+// Save writes the pool state to StateDir/pool.json atomically: data is
+// written to pool.json.tmp first and then renamed over pool.json so a
+// crash mid-write can leave behind a .tmp file but never a partially
+// written pool.json that Load would refuse to parse.
 func (s *State) Save(ctx context.Context) error {
 	logger := log.WithFunc("pool.Save")
 
@@ -73,14 +76,22 @@ func (s *State) Save(ctx context.Context) error {
 	}
 
 	path := filepath.Join(s.StateDir, poolFileName)
-	if err := os.WriteFile(path, data, filePerm); err != nil { //nolint:gosec // not sensitive
-		return fmt.Errorf("write pool state: %w", err)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, filePerm); err != nil { //nolint:gosec // not sensitive
+		return fmt.Errorf("write pool state tmp: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		// Best-effort cleanup; the next Save will overwrite the tmp anyway.
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename pool state: %w", err)
 	}
 	logger.Infof(ctx, "pool state saved (%d IPs) to %s", len(s.IPs), path)
 	return nil
 }
 
-// Load reads the pool state from stateDir/pool.json.
+// Load reads the pool state from stateDir/pool.json. A pool.json.tmp
+// from a crashed Save is intentionally ignored — Save commits via
+// rename, so .tmp is by definition incomplete.
 func Load(ctx context.Context, stateDir string) (*State, error) {
 	logger := log.WithFunc("pool.Load")
 
