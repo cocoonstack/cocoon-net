@@ -1,27 +1,30 @@
 package dhcp
 
 import (
+	"encoding/binary"
 	"net"
 	"sync"
-
-	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// ipPool tracks which IPs from the fixed pool are free or in use.
+// ipPool tracks which IPs from the fixed pool are free or in use. Map
+// keys are the 4-byte IPv4 packed into a uint32 — fast hashing, no
+// string conversion. Callers always pass net.IP via tryClaim/release/etc.
 type ipPool struct {
 	mu   sync.RWMutex
-	free map[uint32]net.IP // IPs not yet leased
-	used map[uint32]bool   // currently leased IPs
+	free map[uint32]net.IP   // IPs not yet leased
+	used map[uint32]struct{} // currently leased IPs (set semantics)
 }
 
 func newIPPool(ips []net.IP) *ipPool {
 	free := make(map[uint32]net.IP, len(ips))
 	for _, ip := range ips {
-		free[ipKey(ip)] = ip.To4()
+		if v4 := ip.To4(); v4 != nil {
+			free[ipKey(v4)] = v4
+		}
 	}
 	return &ipPool{
 		free: free,
-		used: make(map[uint32]bool),
+		used: make(map[uint32]struct{}),
 	}
 }
 
@@ -31,7 +34,7 @@ func (p *ipPool) allocate() net.IP {
 	defer p.mu.Unlock()
 	for k, ip := range p.free {
 		delete(p.free, k)
-		p.used[k] = true
+		p.used[k] = struct{}{}
 		return ip
 	}
 	return nil
@@ -39,31 +42,49 @@ func (p *ipPool) allocate() net.IP {
 
 // release returns an IP to the free pool.
 func (p *ipPool) release(ip net.IP) {
-	if ip == nil {
+	v4 := ip.To4()
+	if v4 == nil {
 		return
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	k := ipKey(ip)
+	k := ipKey(v4)
 	delete(p.used, k)
-	p.free[k] = ip.To4()
+	p.free[k] = v4
 }
 
 // markUsed moves an IP from free to used (for lease restoration).
 func (p *ipPool) markUsed(ip net.IP) {
+	v4 := ip.To4()
+	if v4 == nil {
+		return
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	k := ipKey(ip)
+	k := ipKey(v4)
 	delete(p.free, k)
-	p.used[k] = true
+	p.used[k] = struct{}{}
 }
 
-// isFree checks if an IP is in the free (unallocated) set.
-func (p *ipPool) isFree(ip net.IP) bool {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	_, ok := p.free[ipKey(ip)]
-	return ok
+// tryClaim atomically moves ip from free to used and returns true.
+// Returns false if ip is not in the free set (already claimed, or not
+// part of this pool). The whole check-and-commit happens under p.mu so
+// two concurrent REQUESTs racing for the same free IP can never both
+// win — exactly one observes the IP in free and removes it.
+func (p *ipPool) tryClaim(ip net.IP) bool {
+	v4 := ip.To4()
+	if v4 == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	k := ipKey(v4)
+	if _, free := p.free[k]; !free {
+		return false
+	}
+	delete(p.free, k)
+	p.used[k] = struct{}{}
+	return true
 }
 
 // freeCount returns the number of unallocated IPs.
@@ -73,12 +94,9 @@ func (p *ipPool) freeCount() int {
 	return len(p.free)
 }
 
-// ipKey normalises an IPv4 net.IP (4-byte or 16-byte form) to its uint32
-// representation for use as a map key. Delegates to platform.IP4ToUint32
-// to keep a single source of truth.
-func ipKey(ip net.IP) uint32 {
-	if v4 := ip.To4(); v4 != nil {
-		return platform.IP4ToUint32(v4.String())
-	}
-	return 0
+// ipKey packs a 4-byte IPv4 into a uint32 map key. Callers must pass
+// the 4-byte form (use ip.To4()) — passing a 16-byte form would read
+// past the address bytes and produce a wrong key.
+func ipKey(v4 net.IP) uint32 {
+	return binary.BigEndian.Uint32(v4)
 }
