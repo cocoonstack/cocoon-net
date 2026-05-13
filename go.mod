@@ -3,7 +3,7 @@ module github.com/cocoonstack/cocoon-net
 go 1.25.6
 
 require (
-	github.com/cocoonstack/cocoon-common v0.2.1-0.20260506143712-eaa6e94cf830
+	github.com/cocoonstack/cocoon-common v0.2.1-0.20260513080643-4c7f78af0f9c
 	github.com/coreos/go-iptables v0.8.0
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
 	github.com/projecteru2/core v0.0.0-20241016125006-ff909eefe04c
