@@ -1,13 +1,19 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
 
 	"github.com/cocoonstack/cocoon-net/platform"
 )
+
+const leaseFileName = "leases.json"
 
 func newTeardownCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -53,6 +59,14 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 
 	if err := state.Delete(ctx); err != nil {
 		logger.Warnf(ctx, "delete pool state: %v", err)
+	}
+
+	// Remove the daemon's lease file alongside pool.json. The daemon
+	// writes leases.json into the same state dir; without this, a
+	// re-init after teardown would start with stale DHCP leases.
+	leasePath := filepath.Join(flagStateDir, leaseFileName)
+	if err := os.Remove(leasePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		logger.Warnf(ctx, "delete lease file %s: %v", leasePath, err)
 	}
 
 	fmt.Printf("cocoon-net teardown complete (%s)\n", state.Platform)
