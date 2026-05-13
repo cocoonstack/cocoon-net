@@ -61,9 +61,6 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		logger.Warnf(ctx, "delete pool state: %v", err)
 	}
 
-	// Remove the daemon's lease file alongside pool.json. The daemon
-	// writes leases.json into the same state dir; without this, a
-	// re-init after teardown would start with stale DHCP leases.
 	leasePath := filepath.Join(flagStateDir, leaseFileName)
 	if err := os.Remove(leasePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Warnf(ctx, "delete lease file %s: %v", leasePath, err)
