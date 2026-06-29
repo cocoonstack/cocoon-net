@@ -2,6 +2,7 @@ package dhcp
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"sync"
@@ -31,19 +32,19 @@ type leaseStore struct {
 	filePath string
 }
 
-func newLeaseStore(filePath string) *leaseStore {
-	return &leaseStore{
-		leases:   make(map[string]*lease),
-		filePath: filePath,
-	}
-}
-
 // evictedLease describes a lease entry displaced by add(). Same-MAC
 // rebind leaves the old IP's route + pool slot orphaned; other-MAC
 // conflict is reported for logging.
 type evictedLease struct {
 	MAC string
 	IP  net.IP
+}
+
+func newLeaseStore(filePath string) *leaseStore {
+	return &leaseStore{
+		leases:   make(map[string]*lease),
+		filePath: filePath,
+	}
 }
 
 // add commits a lease, returning any prior entries it displaced.
@@ -152,24 +153,27 @@ func (s *leaseStore) save() error {
 	}
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal leases: %w", err)
 	}
 	// Atomic write: temp file + rename to prevent corruption on crash.
 	tmp := s.filePath + ".tmp"
 	if err := os.WriteFile(tmp, data, leaseFilePerm); err != nil { //nolint:gosec
-		return err
+		return fmt.Errorf("write leases tmp: %w", err)
 	}
-	return os.Rename(tmp, s.filePath)
+	if err := os.Rename(tmp, s.filePath); err != nil {
+		return fmt.Errorf("rename leases: %w", err)
+	}
+	return nil
 }
 
 func (s *leaseStore) load() error {
 	data, err := os.ReadFile(s.filePath) //nolint:gosec
 	if err != nil {
-		return err
+		return fmt.Errorf("read leases from %s: %w", s.filePath, err)
 	}
 	var entries []leaseEntry
 	if err := json.Unmarshal(data, &entries); err != nil {
-		return err
+		return fmt.Errorf("parse leases: %w", err)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()

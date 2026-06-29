@@ -14,7 +14,6 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 	// Re-offer existing lease first.
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
-		// Check if we already have a pending offer for this MAC.
 		var staleIP net.IP
 		ip, staleIP = s.offers.ipForMAC(mac)
 		if staleIP != nil {
@@ -22,7 +21,6 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 		}
 	}
 	if ip == nil {
-		// Allocate a new IP from the free pool.
 		ip = s.pool.allocate()
 		if ip == nil {
 			logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)

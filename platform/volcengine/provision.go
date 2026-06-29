@@ -51,9 +51,9 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		ips, assignErr := assignSecondaryIPs(ctx, eniID, ipsPerENI)
 		if assignErr != nil {
 			// Partial-failure: this ENI is abandoned but other ENIs may still
-			// yield a usable pool. Log the failure and bail out below only if
+			// yield a usable pool. Degraded path; bail out below only if
 			// every ENI failed.
-			logger.Errorf(ctx, assignErr, "assign secondary IPs to %s", eniID)
+			logger.Warnf(ctx, "assign secondary IPs to %s: %v", eniID, assignErr)
 			continue
 		}
 		allIPs = append(allIPs, ips...)

@@ -86,7 +86,7 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 
 	poolIPs := parseIPs(state.IPs)
 	if len(poolIPs) == 0 {
-		return fmt.Errorf("no valid IPs in pool")
+		return errors.New("no valid IPs in pool")
 	}
 	dnsList := state.DNSServers
 	if len(dnsList) == 0 {

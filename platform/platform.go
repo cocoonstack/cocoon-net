@@ -18,31 +18,6 @@ const (
 	volcengineSecondaryNICCount = 7
 )
 
-// DefaultNIC returns the default primary NIC for a given platform.
-func DefaultNIC(platformName string) string {
-	switch platformName {
-	case PlatformVolcengine:
-		return "eth0"
-	default:
-		return "ens4"
-	}
-}
-
-// DefaultSecondaryNICs returns the expected secondary NIC names for a platform.
-// GKE has no secondary NICs; Volcengine uses eth1..eth7 for ENIs.
-func DefaultSecondaryNICs(platformName string) []string {
-	switch platformName {
-	case PlatformVolcengine:
-		nics := make([]string, volcengineSecondaryNICCount)
-		for i := range nics {
-			nics[i] = fmt.Sprintf("eth%d", i+1)
-		}
-		return nics
-	default:
-		return nil
-	}
-}
-
 // CloudPlatform is the interface implemented by each cloud provider.
 type CloudPlatform interface {
 	// Name returns the platform identifier ("gke", "volcengine").
@@ -100,4 +75,29 @@ type PoolStatus struct {
 	// AliasRanges lists NAME:CIDR alias entries currently bound to the
 	// primary NIC (GKE). Empty on platforms that don't use named aliases.
 	AliasRanges []string
+}
+
+// DefaultNIC returns the default primary NIC for a given platform.
+func DefaultNIC(platformName string) string {
+	switch platformName {
+	case PlatformVolcengine:
+		return "eth0"
+	default:
+		return "ens4"
+	}
+}
+
+// DefaultSecondaryNICs returns the expected secondary NIC names for a platform.
+// GKE has no secondary NICs; Volcengine uses eth1..eth7 for ENIs.
+func DefaultSecondaryNICs(platformName string) []string {
+	switch platformName {
+	case PlatformVolcengine:
+		nics := make([]string, volcengineSecondaryNICCount)
+		for i := range nics {
+			nics[i] = fmt.Sprintf("eth%d", i+1)
+		}
+		return nics
+	default:
+		return nil
+	}
 }

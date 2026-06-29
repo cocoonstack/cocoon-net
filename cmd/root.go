@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -96,7 +97,7 @@ func detectPlatform(ctx context.Context) (string, error) {
 	}
 	switch len(hits) {
 	case 0:
-		return "", fmt.Errorf("platform auto-detection failed: no metadata endpoint responded; pass --platform gke|volcengine")
+		return "", errors.New("platform auto-detection failed: no metadata endpoint responded; pass --platform gke|volcengine")
 	case 1:
 		logger.Infof(ctx, "detected platform: %s", hits[0])
 		return hits[0], nil

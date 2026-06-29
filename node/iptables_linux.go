@@ -50,5 +50,8 @@ func iptEnsure(ipt *iptables.IPTables, table, chain string, args ...string) erro
 	if exists {
 		return nil
 	}
-	return ipt.Append(table, chain, args...)
+	if err := ipt.Append(table, chain, args...); err != nil {
+		return fmt.Errorf("append rule: %w", err)
+	}
+	return nil
 }

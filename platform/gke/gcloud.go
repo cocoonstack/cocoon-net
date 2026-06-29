@@ -18,6 +18,22 @@ const (
 	cronFixFile = "/etc/cron.d/cocoon-net-fix-alias"
 )
 
+// aliasEntry is one row from a GCE instance's nic0 aliasIpRanges list.
+type aliasEntry struct {
+	RangeName   string `json:"subnetworkRangeName"`
+	IPCIDRRange string `json:"ipCidrRange"`
+}
+
+// String renders the entry in the NAME:CIDR form gcloud expects for
+// `--aliases` and prints in describe output. Entries without a range name
+// come from the subnet's primary range and are passed as CIDR-only.
+func (a aliasEntry) String() string {
+	if a.RangeName == "" {
+		return a.IPCIDRRange
+	}
+	return a.RangeName + ":" + a.IPCIDRRange
+}
+
 // gcloudRun executes the `gcloud` CLI. Every invocation is a tech-debt
 // hotspot documented at package level — see gke.go. Each call is logged
 // at debug level so operators can correlate slowness with external binary
@@ -148,22 +164,6 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 	}
 	logger.Infof(ctx, "added alias %s:%s to %s; %d alias(es) total", aliasRangeName, cidr, instance, len(merged))
 	return nil
-}
-
-// aliasEntry is one row from a GCE instance's nic0 aliasIpRanges list.
-type aliasEntry struct {
-	RangeName   string `json:"subnetworkRangeName"`
-	IPCIDRRange string `json:"ipCidrRange"`
-}
-
-// String renders the entry in the NAME:CIDR form gcloud expects for
-// `--aliases` and prints in describe output. Entries without a range name
-// come from the subnet's primary range and are passed as CIDR-only.
-func (a aliasEntry) String() string {
-	if a.RangeName == "" {
-		return a.IPCIDRRange
-	}
-	return a.RangeName + ":" + a.IPCIDRRange
 }
 
 // describeNic0Aliases returns the alias IP ranges currently bound to nic0

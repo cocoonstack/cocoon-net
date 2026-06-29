@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-// networkInterface is the JSON shape of a Volcengine ENI.
-type networkInterface struct {
-	NetworkInterfaceID string `json:"NetworkInterfaceId"`
-	Type               string `json:"Type"`
-	PrivateIPSets      struct {
-		PrivateIPSet []struct {
-			Primary          bool   `json:"Primary"`
-			PrivateIPAddress string `json:"PrivateIpAddress"`
-		} `json:"PrivateIpSet"`
-	} `json:"PrivateIpSets"`
-}
-
 // fetchMeta fetches a value from the Volcengine instance metadata service.
 func fetchMeta(ctx context.Context, path string) (string, error) {
 	client := &http.Client{Timeout: metadataTimeout}

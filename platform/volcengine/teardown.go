@@ -10,8 +10,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-const attachPropagationDelay = 4 * time.Second
-
 // Teardown detaches and deletes all secondary ENIs for this instance.
 // cfg is ignored because Volcengine teardown walks whatever secondary ENIs
 // are currently attached rather than relying on persisted state.

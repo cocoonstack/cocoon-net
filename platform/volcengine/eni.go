@@ -10,7 +10,22 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-const createPropagationDelay = 2 * time.Second
+const (
+	createPropagationDelay = 2 * time.Second
+	attachPropagationDelay = 4 * time.Second
+)
+
+// networkInterface is the JSON shape of a Volcengine ENI.
+type networkInterface struct {
+	NetworkInterfaceID string `json:"NetworkInterfaceId"`
+	Type               string `json:"Type"`
+	PrivateIPSets      struct {
+		PrivateIPSet []struct {
+			Primary          bool   `json:"Primary"`
+			PrivateIPAddress string `json:"PrivateIpAddress"`
+		} `json:"PrivateIpSet"`
+	} `json:"PrivateIpSets"`
+}
 
 func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, count int) ([]string, error) {
 	logger := log.WithFunc("volcengine.createAndAttachENIs")
@@ -47,8 +62,9 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			// Attach failed — this ENI is not usable for IP assignment.
 			// Best-effort cleanup of the orphan ENI to avoid leaking quota;
 			// we only log the delete error because the attach failure is
-			// already the primary signal to the operator.
-			logger.Errorf(ctx, attachErr, "attach ENI %s", eniID)
+			// already the primary signal to the operator. Degraded, not fatal:
+			// the remaining ENIs can still build a usable pool.
+			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
 			if _, delErr := veRun(
 				ctx, "vpc", "DeleteNetworkInterface",
 				"--NetworkInterfaceId", eniID,
