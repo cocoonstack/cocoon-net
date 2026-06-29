@@ -35,9 +35,8 @@ func (a aliasEntry) String() string {
 }
 
 // gcloudRun executes the `gcloud` CLI. Every invocation is a tech-debt
-// hotspot documented at package level — see gke.go. Each call is logged
-// at debug level so operators can correlate slowness with external binary
-// spawns.
+// hotspot documented at package level — see gke.go. Calls are logged at
+// debug to correlate slowness with binary spawns.
 func gcloudRun(ctx context.Context, args ...string) ([]byte, error) {
 	logger := log.WithFunc("gke.gcloudRun")
 	logger.Debugf(ctx, "spawn external binary: gcloud %s", strings.Join(args, " "))

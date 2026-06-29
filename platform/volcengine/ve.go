@@ -10,9 +10,8 @@ import (
 )
 
 // veRun shells out to the `ve` CLI. Every invocation is a tech-debt hotspot
-// documented at package level — see volcengine.go. Each call is logged at
-// debug level so operators can correlate slowness with external binary
-// spawns.
+// documented at package level — see volcengine.go. Calls are logged at debug
+// to correlate slowness with binary spawns.
 func veRun(ctx context.Context, args ...string) ([]byte, error) {
 	logger := log.WithFunc("volcengine.veRun")
 	logger.Debugf(ctx, "spawn external binary: ve %s", strings.Join(args, " "))
