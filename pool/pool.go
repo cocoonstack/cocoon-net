@@ -48,6 +48,12 @@ type State struct {
 	// before this field existed; daemon falls back to built-in defaults.
 	DNSServers []string `json:"dnsServers,omitempty"`
 
+	// DropInternalAccess blocks VM-to-VM traffic within the subnet; DropCIDRs
+	// lists additional external ranges VM traffic is blocked from reaching.
+	// Both are enforced by node setup as FORWARD DROP rules.
+	DropInternalAccess bool     `json:"dropInternalAccess,omitempty"`
+	DropCIDRs          []string `json:"dropCIDRs,omitempty"`
+
 	// timestamps
 	UpdatedAt time.Time `json:"updatedAt"`
 }

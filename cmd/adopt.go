@@ -73,6 +73,8 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 			fmt.Printf("  pool-size:       0\n")
 		}
 		fmt.Printf("  dns:             %s\n", strings.Join(dnsServers, ","))
+		fmt.Printf("  drop-internal:   %v\n", flagDropInternal)
+		fmt.Printf("  drop-cidr:       %s\n", strings.Join(flagDropCIDRs, ","))
 		fmt.Printf("  state-dir:       %s\n", flagStateDir)
 		fmt.Printf("  manage-iptables: %v\n", flagManageIPTables)
 		fmt.Println()
@@ -90,11 +92,13 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	}
 
 	nodeCfg := &node.Config{
-		Gateway:       gateway,
-		SubnetCIDR:    flagSubnet,
-		PrimaryNIC:    primaryNIC,
-		SecondaryNICs: secondaryNICs,
-		SkipIPTables:  !flagManageIPTables,
+		Gateway:            gateway,
+		SubnetCIDR:         flagSubnet,
+		PrimaryNIC:         primaryNIC,
+		SecondaryNICs:      secondaryNICs,
+		SkipIPTables:       !flagManageIPTables,
+		DropInternalAccess: flagDropInternal,
+		DropCIDRs:          flagDropCIDRs,
 	}
 	if err := node.Setup(ctx, nodeCfg); err != nil {
 		return fmt.Errorf("node setup: %w", err)
@@ -102,15 +106,17 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	logger.Info(ctx, "node networking configured (adopted, cloud side untouched)")
 
 	state := &pool.State{
-		Platform:      platformName,
-		NodeName:      flagNodeName,
-		Subnet:        flagSubnet,
-		Gateway:       gateway,
-		PrimaryNIC:    primaryNIC,
-		SecondaryNICs: secondaryNICs,
-		IPs:           ips,
-		DNSServers:    dnsServers,
-		StateDir:      flagStateDir,
+		Platform:           platformName,
+		NodeName:           flagNodeName,
+		Subnet:             flagSubnet,
+		Gateway:            gateway,
+		PrimaryNIC:         primaryNIC,
+		SecondaryNICs:      secondaryNICs,
+		IPs:                ips,
+		DNSServers:         dnsServers,
+		DropInternalAccess: flagDropInternal,
+		DropCIDRs:          flagDropCIDRs,
+		StateDir:           flagStateDir,
 	}
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)

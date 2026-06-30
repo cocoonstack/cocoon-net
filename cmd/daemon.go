@@ -65,11 +65,13 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		primaryNIC = platform.DefaultNIC(state.Platform)
 	}
 	if setupErr := node.Setup(ctx, &node.Config{
-		Gateway:       state.Gateway,
-		SubnetCIDR:    state.Subnet,
-		PrimaryNIC:    primaryNIC,
-		SecondaryNICs: state.SecondaryNICs,
-		SkipIPTables:  flagSkipIPTables,
+		Gateway:            state.Gateway,
+		SubnetCIDR:         state.Subnet,
+		PrimaryNIC:         primaryNIC,
+		SecondaryNICs:      state.SecondaryNICs,
+		SkipIPTables:       flagSkipIPTables,
+		DropInternalAccess: state.DropInternalAccess,
+		DropCIDRs:          state.DropCIDRs,
 	}); setupErr != nil {
 		return fmt.Errorf("node setup: %w", setupErr)
 	}

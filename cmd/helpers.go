@@ -15,15 +15,17 @@ import (
 const defaultStateDir = "/var/lib/cocoon/net"
 
 var (
-	flagPlatform   string
-	flagNodeName   string
-	flagSubnet     string
-	flagPoolSize   int
-	flagGateway    string
-	flagPrimaryNIC string
-	flagDNS        string
-	flagStateDir   string
-	flagDryRun     bool
+	flagPlatform     string
+	flagNodeName     string
+	flagSubnet       string
+	flagPoolSize     int
+	flagGateway      string
+	flagPrimaryNIC   string
+	flagDNS          string
+	flagStateDir     string
+	flagDryRun       bool
+	flagDropInternal bool
+	flagDropCIDRs    []string
 
 	// flagManageIPTables is the inverse of node.Config.SkipIPTables,
 	// exposed only on adopt (off by default to preserve host rules).
@@ -41,6 +43,8 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
+	cmd.Flags().BoolVar(&flagDropInternal, "drop-internal-access", false, "block VM-to-VM traffic within the cocoon subnet")
+	cmd.Flags().StringArrayVar(&flagDropCIDRs, "drop-cidr", nil, "additional external destination CIDR VMs may not reach; repeatable (e.g. --drop-cidr 10.0.0.0/8)")
 	_ = cmd.MarkFlagRequired("node-name")
 	_ = cmd.MarkFlagRequired("subnet")
 }

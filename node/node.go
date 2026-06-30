@@ -32,6 +32,16 @@ type Config struct {
 
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
+
+	// DropInternalAccess blocks VM-to-VM traffic within SubnetCIDR (cocoon's
+	// own range). Enforced as a FORWARD DROP; node setup enables the
+	// bridge-nf-call-iptables it relies on. Ignored when SkipIPTables is set.
+	DropInternalAccess bool
+
+	// DropCIDRs lists additional external destination CIDRs VM traffic is
+	// blocked from reaching (e.g. management ranges). Same enforcement and
+	// SkipIPTables gating as DropInternalAccess.
+	DropCIDRs []string
 }
 
 // Setup configures host networking components (idempotent).
@@ -53,7 +63,7 @@ func Setup(ctx context.Context, cfg *Config) error {
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
-	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs); err != nil {
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs, cfg.DropInternalAccess, cfg.DropCIDRs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
