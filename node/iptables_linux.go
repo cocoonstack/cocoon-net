@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/coreos/go-iptables/iptables"
@@ -18,14 +19,20 @@ import (
 // quote-safe ([-_+./0-9A-Za-z]) or iptables -S quotes it, breaking removal.
 const dropRuleComment = "cocoon-net-drop"
 
-// ClearDropRules removes the FORWARD egress-isolation rules cocoon-net installed.
+// ClearDropRules removes every FORWARD egress-isolation rule cocoon-net installed.
 func ClearDropRules(ctx context.Context) error {
-	logger := log.WithFunc("node.ClearDropRules")
-
 	ipt, err := iptables.New()
 	if err != nil {
 		return fmt.Errorf("init iptables: %w", err)
 	}
+	return reconcileDropRules(ctx, ipt, nil)
+}
+
+// reconcileDropRules deletes tagged FORWARD drop rules not in want (nil want
+// removes all); callers insert desired rules first so the reconcile is gapless.
+func reconcileDropRules(ctx context.Context, ipt *iptables.IPTables, want []string) error {
+	logger := log.WithFunc("node.reconcileDropRules")
+
 	rules, err := ipt.List("filter", "FORWARD")
 	if err != nil {
 		return fmt.Errorf("list FORWARD: %w", err)
@@ -41,6 +48,9 @@ func ClearDropRules(ctx context.Context) error {
 		if len(fields) < 3 {
 			continue
 		}
+		if dst, ok := ruleDest(fields); ok && slices.Contains(want, dst) {
+			continue
+		}
 		if err := ipt.Delete("filter", "FORWARD", fields[2:]...); err != nil {
 			failed++
 			continue
@@ -48,11 +58,21 @@ func ClearDropRules(ctx context.Context) error {
 		removed++
 	}
 
-	logger.Infof(ctx, "cleared %d egress drop rule(s)", removed)
+	if removed > 0 {
+		logger.Infof(ctx, "removed %d egress drop rule(s)", removed)
+	}
 	if failed > 0 {
 		return fmt.Errorf("delete %d of %d drop rules failed", failed, removed+failed)
 	}
 	return nil
+}
+
+// ruleDest returns the -d destination from an iptables -S rule's fields.
+func ruleDest(fields []string) (string, bool) {
+	if i := slices.Index(fields, "-d"); i >= 0 && i+1 < len(fields) {
+		return fields[i+1], true
+	}
+	return "", false
 }
 
 // setupIPTables installs the FORWARD rules between secondary NICs and the
@@ -90,25 +110,25 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 		return fmt.Errorf("iptables NAT MASQUERADE: %w", err)
 	}
 
-	if len(dropTargets) == 0 {
-		logger.Infof(ctx, "iptables configured for subnet %s", subnetCIDR)
-		return nil
-	}
-
-	// Same-node VMs share cni0 and are switched at L2, which bypasses iptables
-	// unless bridge-nf-call-iptables is on. Without it the DROP rules below
-	// would silently not apply to VM-to-VM, so enable it (fail closed) first.
-	if err := ensureBridgeNFCall(ctx); err != nil {
-		return fmt.Errorf("enable bridge netfilter: %w", err)
-	}
-
-	// Insert at the head of FORWARD so DROP wins over the ACCEPT rules above.
-	// The -i BridgeName match leaves return traffic (no -i cni0) alone; VM
-	// traffic to the gateway is host-bound via INPUT, not FORWARD, so unaffected.
-	for _, dst := range dropTargets {
-		if err := iptInsert(ipt, "filter", "FORWARD", "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
-			return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
+	if len(dropTargets) > 0 {
+		// Same-node VM-to-VM is L2-switched on cni0 and bypasses iptables
+		// unless bridge-nf-call-iptables is on; enable it (fail closed) first.
+		if err := ensureBridgeNFCall(ctx); err != nil {
+			return fmt.Errorf("enable bridge netfilter: %w", err)
 		}
+
+		// Insert at FORWARD's head so DROP precedes the ACCEPT rules; the -i
+		// match spares return traffic, and VM-to-gateway is INPUT, not FORWARD.
+		for _, dst := range dropTargets {
+			if err := iptInsert(ipt, "filter", "FORWARD", "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
+				return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
+			}
+		}
+	}
+
+	// Prune rules no longer wanted; desired ones were inserted above, so gapless.
+	if err := reconcileDropRules(ctx, ipt, dropTargets); err != nil {
+		return fmt.Errorf("reconcile drop rules: %w", err)
 	}
 
 	logger.Infof(ctx, "iptables configured for subnet %s, %d egress drop rule(s)", subnetCIDR, len(dropTargets))
@@ -118,8 +138,8 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 // resolveDropTargets resolves the CIDRs VM egress is blocked from reaching: the
 // subnet itself when dropInternal is set (VM-to-VM isolation, reusing the range
 // cocoon already knows), plus operator-supplied dropCIDRs. CIDRs are
-// canonicalized so iptInsert's existence check dedups; IPv6 is rejected because
-// the rules go through the IPv4 iptables binary.
+// canonicalized to match iptables' -S output (dedup + prune); IPv6 is rejected
+// because the rules go through the IPv4 iptables binary.
 func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string) ([]string, error) {
 	var raw []string
 	if dropInternal {
