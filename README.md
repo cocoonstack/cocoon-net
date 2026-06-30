@@ -71,6 +71,37 @@ sudo cocoon-net init \
   --pool-size 140
 ```
 
+#### VM egress isolation (`--drop-internal-access`, `--drop-cidr`)
+
+Both flags (accepted by `init` and `adopt`) block VM-originated traffic and are
+persisted to `pool.json`, reapplied by the daemon as `FORWARD` DROP rules at the
+head of the chain so they win over the default accept rules. Return traffic and
+internet egress are unaffected.
+
+- `--drop-internal-access` blocks **VM-to-VM** traffic within the cocoon subnet.
+  cocoon-net already knows the subnet from `--subnet`, so there is no CIDR to
+  restate.
+- `--drop-cidr` (repeatable) blocks additional **external** destination ranges,
+  e.g. internal/VPC management networks.
+
+Same-node VMs share `cni0` and are switched at L2, which bypasses iptables
+unless `bridge-nf-call-iptables=1`. When either flag is set, node setup loads
+`br_netfilter` and enables that toggle, **failing closed** if it cannot — so the
+isolation is never silently a no-op. The DROP rules are tagged `cocoon-net-drop`,
+so `teardown` removes exactly them.
+
+```bash
+sudo cocoon-net init \
+  --platform gke --node-name cocoon-pool \
+  --subnet 172.20.100.0/24 --pool-size 140 \
+  --drop-internal-access \
+  --drop-cidr 10.0.0.0/8
+```
+
+> Note: traffic to the node's own address (e.g. a kubelet bound on the cni0
+> gateway IP) is delivered via `INPUT`, not `FORWARD`, so these flags do not
+> cover it — restrict those separately (host `INPUT` rule or bind off cni0).
+
 ### daemon -- run DHCP server (systemd service)
 
 ```bash

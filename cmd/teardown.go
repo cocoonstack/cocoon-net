@@ -10,6 +10,7 @@ import (
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
 
+	"github.com/cocoonstack/cocoon-net/node"
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
@@ -56,6 +57,10 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("teardown: %w", err)
 	}
 	logger.Infof(ctx, "teardown complete for %s", state.Platform)
+
+	if err := node.ClearDropRules(ctx); err != nil {
+		logger.Warnf(ctx, "clear iptables drop rules: %v", err)
+	}
 
 	if err := state.Delete(ctx); err != nil {
 		logger.Warnf(ctx, "delete pool state: %v", err)
