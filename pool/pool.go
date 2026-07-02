@@ -36,18 +36,16 @@ type State struct {
 	ENIIDs        []string `json:"eniIDs,omitempty"`
 	SubnetID      string   `json:"subnetID,omitempty"`
 
-	// AliasRangeName is the GCE secondary range name (GKE only). Empty
-	// for other platforms and for adopted nodes — teardown then falls
-	// back to the platform default.
+	// AliasRangeName is the GCE secondary range name (GKE only); empty for
+	// other platforms/adopted nodes — teardown falls back to the default.
 	AliasRangeName string `json:"aliasRangeName,omitempty"`
 
 	// DNSServers handed out in DHCP replies. Empty on state written
 	// before this field existed; daemon falls back to built-in defaults.
 	DNSServers []string `json:"dnsServers,omitempty"`
 
-	// DropInternalAccess blocks VM-to-VM traffic within the subnet; DropCIDRs
-	// lists additional external ranges VM traffic is blocked from reaching.
-	// Both are enforced by node setup as FORWARD DROP rules.
+	// DropInternalAccess blocks VM-to-VM traffic in-subnet, DropCIDRs extra
+	// external ranges; both enforced by node setup as FORWARD DROP rules.
 	DropInternalAccess bool     `json:"dropInternalAccess,omitempty"`
 	DropCIDRs          []string `json:"dropCIDRs,omitempty"`
 
@@ -82,6 +80,17 @@ func (s *State) Save(ctx context.Context) error {
 	return nil
 }
 
+// Delete removes the pool state file.
+func (s *State) Delete(ctx context.Context) error {
+	logger := log.WithFunc("pool.Delete")
+	path := filepath.Join(s.StateDir, poolFileName)
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("remove pool state %s: %w", path, err)
+	}
+	logger.Infof(ctx, "pool state deleted: %s", path)
+	return nil
+}
+
 // Load reads the pool state from stateDir/pool.json. A leftover
 // pool.json.tmp is ignored — Save commits via rename, so .tmp is by
 // definition incomplete.
@@ -101,15 +110,4 @@ func Load(ctx context.Context, stateDir string) (*State, error) {
 	s.StateDir = stateDir
 	logger.Infof(ctx, "pool state loaded (%d IPs, platform=%s)", len(s.IPs), s.Platform)
 	return &s, nil
-}
-
-// Delete removes the pool state file.
-func (s *State) Delete(ctx context.Context) error {
-	logger := log.WithFunc("pool.Delete")
-	path := filepath.Join(s.StateDir, poolFileName)
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("remove pool state %s: %w", path, err)
-	}
-	logger.Infof(ctx, "pool state deleted: %s", path)
-	return nil
 }

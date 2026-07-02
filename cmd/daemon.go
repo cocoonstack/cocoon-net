@@ -128,9 +128,8 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	return srv.Run(ctx)
 }
 
-// serveMetrics registers the cocoon-net collectors on the default registry and
-// serves them over HTTP until ctx is canceled. Startup/serve failures are
-// logged, never fatal — metrics must not take down live VM networking.
+// serveMetrics failures are logged, never fatal — metrics must not take down
+// live VM networking.
 func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 	logger := log.WithFunc("cmd.serveMetrics")
 

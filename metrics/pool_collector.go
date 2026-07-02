@@ -4,14 +4,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var _ prometheus.Collector = (*PoolCollector)(nil)
-
 // PoolState is a point-in-time snapshot of DHCP pool occupancy, read on each
 // scrape so the gauges self-clean when the daemon stops (no stale series).
 type PoolState struct {
 	Available int
 	Active    int
 }
+
+var _ prometheus.Collector = (*PoolCollector)(nil)
 
 // PoolCollector emits DHCP pool gauges by reading live server state per scrape.
 type PoolCollector struct {

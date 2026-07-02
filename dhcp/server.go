@@ -20,8 +20,7 @@ const (
 	offerTimeout         = 60 * time.Second
 )
 
-// Route ops are indirected through vars so tests can stub the netlink calls;
-// production keeps the real /32-host-route implementations.
+// Route ops are indirected through vars so tests can stub the netlink calls.
 var (
 	addRouteFn = addRoute
 	delRouteFn = delRoute
