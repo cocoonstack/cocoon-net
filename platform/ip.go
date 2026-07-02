@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/binary"
 	"fmt"
-	"net"
 	"net/netip"
 	"slices"
 )
@@ -17,13 +16,6 @@ func IP4ToUint32(s string) uint32 {
 	}
 	b := addr.As4()
 	return binary.BigEndian.Uint32(b[:])
-}
-
-// Uint32ToIP4 converts a uint32 to a dotted-decimal IPv4 string.
-func Uint32ToIP4(n uint32) string {
-	var b [4]byte
-	binary.BigEndian.PutUint32(b[:], n)
-	return netip.AddrFrom4(b).String()
 }
 
 // SortIPs sorts IPv4 address strings numerically in place.
@@ -103,16 +95,6 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 		ips = append(ips, addr.String())
 	}
 	return ips, nil
-}
-
-// CIDRMask returns the network address and dotted-decimal mask for a CIDR.
-func CIDRMask(cidr string) (network, mask string, err error) {
-	_, ipNet, parseErr := net.ParseCIDR(cidr)
-	if parseErr != nil {
-		return "", "", fmt.Errorf("parse cidr %s: %w", cidr, parseErr)
-	}
-	m := ipNet.Mask
-	return ipNet.IP.String(), fmt.Sprintf("%d.%d.%d.%d", m[0], m[1], m[2], m[3]), nil
 }
 
 // CIDRContainsCIDR reports whether outer contains inner (same network or a supernet).

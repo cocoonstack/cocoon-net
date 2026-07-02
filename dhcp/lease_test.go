@@ -7,15 +7,6 @@ import (
 	"time"
 )
 
-func mustMAC(t *testing.T, s string) net.HardwareAddr {
-	t.Helper()
-	mac, err := net.ParseMAC(s)
-	if err != nil {
-		t.Fatalf("parse mac %q: %v", s, err)
-	}
-	return mac
-}
-
 func TestLeaseStore_AddNoEviction(t *testing.T) {
 	t.Parallel()
 
@@ -136,4 +127,13 @@ func TestLeaseStore_SaveLoadRoundtrip(t *testing.T) {
 	if got := dst.ipForMAC(mac); !got.Equal(ip) {
 		t.Errorf("ipForMAC after reload=%s, want %s", got, ip)
 	}
+}
+
+func mustMAC(t *testing.T, s string) net.HardwareAddr {
+	t.Helper()
+	mac, err := net.ParseMAC(s)
+	if err != nil {
+		t.Fatalf("parse mac %q: %v", s, err)
+	}
+	return mac
 }

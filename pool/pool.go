@@ -23,17 +23,14 @@ const (
 
 // State represents the pool state persisted to disk.
 type State struct {
-	// identification / config
 	Platform   string `json:"platform"`
 	NodeName   string `json:"nodeName"`
 	Subnet     string `json:"subnet"`
 	Gateway    string `json:"gateway"`
 	PrimaryNIC string `json:"primaryNIC,omitempty"`
 
-	// runtime (not persisted)
 	StateDir string `json:"-"`
 
-	// resources
 	SecondaryNICs []string `json:"secondaryNICs,omitempty"`
 	IPs           []string `json:"ips"`
 	ENIIDs        []string `json:"eniIDs,omitempty"`
@@ -54,7 +51,6 @@ type State struct {
 	DropInternalAccess bool     `json:"dropInternalAccess,omitempty"`
 	DropCIDRs          []string `json:"dropCIDRs,omitempty"`
 
-	// timestamps
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 

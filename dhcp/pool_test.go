@@ -7,19 +7,6 @@ import (
 	"testing"
 )
 
-func parseIPs(t *testing.T, ips ...string) []net.IP {
-	t.Helper()
-	out := make([]net.IP, 0, len(ips))
-	for _, s := range ips {
-		ip := net.ParseIP(s).To4()
-		if ip == nil {
-			t.Fatalf("parse %q", s)
-		}
-		out = append(out, ip)
-	}
-	return out
-}
-
 func TestIPPool_TryClaimAtomic(t *testing.T) {
 	t.Parallel()
 
@@ -141,4 +128,17 @@ func TestIPPool_MarkUsedAllocate(t *testing.T) {
 	if pool.allocate() != nil {
 		t.Fatalf("allocate on exhausted pool must return nil")
 	}
+}
+
+func parseIPs(t *testing.T, ips ...string) []net.IP {
+	t.Helper()
+	out := make([]net.IP, 0, len(ips))
+	for _, s := range ips {
+		ip := net.ParseIP(s).To4()
+		if ip == nil {
+			t.Fatalf("parse %q", s)
+		}
+		out = append(out, ip)
+	}
+	return out
 }
