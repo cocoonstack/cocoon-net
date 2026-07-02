@@ -3,7 +3,7 @@ module github.com/cocoonstack/cocoon-net
 go 1.25.6
 
 require (
-	github.com/cocoonstack/cocoon-common v0.2.2
+	github.com/cocoonstack/cocoon-common v0.2.3
 	github.com/coreos/go-iptables v0.8.0
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
 	github.com/projecteru2/core v0.0.0-20241016125006-ff909eefe04c
@@ -34,8 +34,8 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/grpc v1.72.2 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
