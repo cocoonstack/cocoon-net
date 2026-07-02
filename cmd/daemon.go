@@ -1,21 +1,34 @@
 package cmd
 
 import (
+	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
 	"net"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/projecteru2/core/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
 	"github.com/cocoonstack/cocoon-net/dhcp"
+	"github.com/cocoonstack/cocoon-net/metrics"
 	"github.com/cocoonstack/cocoon-net/node"
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-const defaultLeaseFile = "/var/lib/cocoon/net/leases.json"
+const (
+	defaultLeaseFile   = "/var/lib/cocoon/net/leases.json"
+	defaultMetricsAddr = ":9092"
+
+	metricsReadHeaderTimeout = 5 * time.Second
+	metricsShutdownTimeout   = 5 * time.Second
+)
 
 var (
 	// fallbackDNSServers covers pre-migration state files without DNSServers.
@@ -23,6 +36,7 @@ var (
 
 	flagLeaseFile    string
 	flagSkipIPTables bool
+	flagMetricsAddr  string
 )
 
 func newDaemonCmd() *cobra.Command {
@@ -38,6 +52,7 @@ and removed when they expire.`,
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")
 	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "path to lease persistence file")
 	cmd.Flags().BoolVar(&flagSkipIPTables, "skip-iptables", false, "skip iptables setup (for pre-configured nodes)")
+	cmd.Flags().StringVar(&flagMetricsAddr, "metrics-addr", cmp.Or(os.Getenv("COCOON_NET_METRICS_ADDR"), defaultMetricsAddr), "prometheus metrics listen address (empty to disable)")
 	return cmd
 }
 
@@ -105,6 +120,41 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		LeaseFile:  flagLeaseFile,
 	}, poolIPs)
 
+	if flagMetricsAddr != "" {
+		serveMetrics(ctx, flagMetricsAddr, srv)
+	}
+
 	logger.Info(ctx, "starting DHCP daemon")
 	return srv.Run(ctx)
+}
+
+// serveMetrics registers the cocoon-net collectors on the default registry and
+// serves them over HTTP until ctx is canceled. Startup/serve failures are
+// logged, never fatal — metrics must not take down live VM networking.
+func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
+	logger := log.WithFunc("cmd.serveMetrics")
+
+	metrics.Register(prometheus.DefaultRegisterer)
+	prometheus.DefaultRegisterer.MustRegister(metrics.NewPoolCollector(func() metrics.PoolState {
+		return metrics.PoolState{Available: srv.PoolAvailable(), Active: srv.ActiveLeaseCount()}
+	}))
+
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: metricsReadHeaderTimeout}
+
+	go func() {
+		<-ctx.Done()
+		// New ctx: the parent is already canceled, but shutdown must still drain.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), metricsShutdownTimeout)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
+
+	go func() {
+		logger.Infof(ctx, "metrics server listening on %s", addr)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error(ctx, err, "metrics server")
+		}
+	}()
 }

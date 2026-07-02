@@ -20,6 +20,13 @@ const (
 	offerTimeout         = 60 * time.Second
 )
 
+// Route ops are indirected through vars so tests can stub the netlink calls;
+// production keeps the real /32-host-route implementations.
+var (
+	addRouteFn = addRoute
+	delRouteFn = delRoute
+)
+
 // Config holds DHCP server parameters.
 type Config struct {
 	Interface  string
@@ -112,6 +119,12 @@ func (s *Server) Run(ctx context.Context) error {
 		return fmt.Errorf("DHCP server: %w", err)
 	}
 }
+
+// PoolAvailable returns the number of unallocated pool IPs, read per metrics scrape.
+func (s *Server) PoolAvailable() int { return s.pool.freeCount() }
+
+// ActiveLeaseCount returns the number of unexpired leases, read per metrics scrape.
+func (s *Server) ActiveLeaseCount() int { return s.leases.activeCount() }
 
 // handler dispatches each DHCP packet to a message-type-specific handler.
 func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {

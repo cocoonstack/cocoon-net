@@ -6,6 +6,8 @@ import (
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
 func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
@@ -19,6 +21,11 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		logger.Infof(ctx, "REQUEST from %s: no IP requested", mac)
 		return
 	}
+
+	// Record exactly one outcome per grant attempt: default failed, flipped to
+	// ok only once the ACK is on the wire.
+	result := "failed"
+	defer func() { metrics.DHCPLeaseTotal.WithLabelValues(result).Inc() }()
 
 	if s.leases.isLeasedToOther(mac, reqIP) {
 		s.sendNAK(ctx, conn, peer, msg)
@@ -48,7 +55,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	// Install the /32 route before committing lease state — without it
 	// the client would lease an unreachable IP. RouteReplace is
 	// idempotent so client re-REQUESTs are safe.
-	if err := addRoute(reqIP, s.linkIndex); err != nil {
+	if err := addRouteFn(reqIP, s.linkIndex); err != nil {
 		if !alreadyHeld {
 			s.pool.release(reqIP)
 		}
@@ -62,7 +69,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	}
 	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
 		if e.MAC == mac.String() {
-			if err := delRoute(e.IP, s.linkIndex); err != nil {
+			if err := delRouteFn(e.IP, s.linkIndex); err != nil {
 				logger.Errorf(ctx, err, "del orphan route %s after %s rebind to %s", e.IP, mac, reqIP)
 			}
 			s.pool.release(e.IP)
@@ -78,6 +85,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
+	result = "ok"
 	if err := s.leases.save(); err != nil {
 		logger.Error(ctx, err, "persist leases after ACK")
 	}

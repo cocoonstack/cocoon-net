@@ -125,6 +125,19 @@ func (s *leaseStore) activeLeases() []lease {
 	return active
 }
 
+func (s *leaseStore) activeCount() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	n := 0
+	for _, l := range s.leases {
+		if now.Before(l.Expiry) {
+			n++
+		}
+	}
+	return n
+}
+
 // expireOld removes expired leases and returns them.
 func (s *leaseStore) expireOld() []lease {
 	s.mu.Lock()

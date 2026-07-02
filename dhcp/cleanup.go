@@ -13,7 +13,7 @@ func (s *Server) restoreLeases(ctx context.Context) {
 	active := s.leases.activeLeases()
 	for _, l := range active {
 		s.pool.markUsed(l.IP)
-		if err := addRoute(l.IP, s.linkIndex); err != nil {
+		if err := addRouteFn(l.IP, s.linkIndex); err != nil {
 			logger.Errorf(ctx, err, "restore route %s", l.IP)
 		}
 	}
@@ -43,7 +43,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 			// have our late delRoute black-hole it.
 			expired := s.leases.expireOld()
 			for _, l := range expired {
-				if err := delRoute(l.IP, s.linkIndex); err != nil {
+				if err := delRouteFn(l.IP, s.linkIndex); err != nil {
 					logger.Errorf(ctx, err, "del expired route %s", l.IP)
 				}
 				s.pool.release(l.IP)
