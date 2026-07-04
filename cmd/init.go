@@ -55,6 +55,23 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
+	// Persist a seed state before provisioning any cloud resource, so a
+	// mid-provision failure still leaves teardown something to act on
+	// instead of orphaning resources with no recorded state.
+	state := &pool.State{
+		Platform:           flagPlatform,
+		NodeName:           cfg.NodeName,
+		Subnet:             cfg.SubnetCIDR,
+		Gateway:            cfg.Gateway,
+		DNSServers:         dnsServers,
+		DropInternalAccess: flagDropInternal,
+		DropCIDRs:          flagDropCIDRs,
+		StateDir:           flagStateDir,
+	}
+	if err := state.Save(ctx); err != nil {
+		return fmt.Errorf("save seed pool state: %w", err)
+	}
+
 	plat, err := newPlatform(ctx, flagPlatform)
 	if err != nil {
 		return fmt.Errorf("init platform: %w", err)
@@ -66,6 +83,17 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("provision network: %w", err)
 	}
 	logger.Infof(ctx, "provisioned %d IPs on subnet %s", len(result.IPs), result.SubnetCIDR)
+
+	state.Subnet = result.SubnetCIDR
+	state.Gateway = result.Gateway
+	state.PrimaryNIC = result.PrimaryNIC
+	state.SecondaryNICs = result.SecondaryNICs
+	state.IPs = result.IPs
+	state.AliasRangeName = result.AliasRangeName
+	if err := state.Save(ctx); err != nil {
+		return fmt.Errorf("save pool state: %w", err)
+	}
+	logger.Infof(ctx, "pool state saved to %s/pool.json", flagStateDir)
 
 	nodeCfg := &node.Config{
 		Gateway:            result.Gateway,
@@ -79,25 +107,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("node setup: %w", err)
 	}
 	logger.Info(ctx, "node networking configured")
-
-	state := &pool.State{
-		Platform:           result.Platform,
-		NodeName:           cfg.NodeName,
-		Subnet:             result.SubnetCIDR,
-		Gateway:            result.Gateway,
-		PrimaryNIC:         result.PrimaryNIC,
-		SecondaryNICs:      result.SecondaryNICs,
-		IPs:                result.IPs,
-		AliasRangeName:     result.AliasRangeName,
-		DNSServers:         dnsServers,
-		DropInternalAccess: flagDropInternal,
-		DropCIDRs:          flagDropCIDRs,
-		StateDir:           flagStateDir,
-	}
-	if err := state.Save(ctx); err != nil {
-		return fmt.Errorf("save pool state: %w", err)
-	}
-	logger.Infof(ctx, "pool state saved to %s/pool.json", flagStateDir)
 
 	fmt.Printf("cocoon-net init complete: %d IPs provisioned on %s (%s)\n",
 		len(result.IPs), result.SubnetCIDR, result.Platform)

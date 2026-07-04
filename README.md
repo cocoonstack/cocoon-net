@@ -47,7 +47,8 @@ pool.json  <----------        |
 ## Installation
 
 ```bash
-curl -sL https://github.com/cocoonstack/cocoon-net/releases/latest/download/cocoon-net_Linux_x86_64.tar.gz | tar xz
+VER=$(curl -sI https://github.com/cocoonstack/cocoon-net/releases/latest | awk -F'/v' 'tolower($0) ~ /^location:/ {print $NF}' | tr -d '\r')
+curl -sL "https://github.com/cocoonstack/cocoon-net/releases/download/v${VER}/cocoon-net_${VER}_Linux_x86_64.tar.gz" | tar xz
 sudo install -m 0755 cocoon-net /usr/local/bin/
 ```
 
