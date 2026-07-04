@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/projecteru2/core/log"
@@ -35,19 +34,9 @@ func (a aliasEntry) String() string {
 }
 
 // gcloudRun executes the `gcloud` CLI. Every invocation is a tech-debt
-// hotspot documented at package level — see gke.go. Calls are logged at
-// debug to correlate slowness with binary spawns.
+// hotspot documented at package level — see gke.go.
 func gcloudRun(ctx context.Context, args ...string) ([]byte, error) {
-	logger := log.WithFunc("gke.gcloudRun")
-	logger.Debugf(ctx, "spawn external binary: gcloud %s", strings.Join(args, " "))
-
-	//nolint:gosec // args from metadata / constants
-	cmd := exec.CommandContext(ctx, "gcloud", args...)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return out, fmt.Errorf("gcloud %s: %w: %s", strings.Join(args[:min(3, len(args))], " "), err, out)
-	}
-	return out, nil
+	return platform.RunSubprocess(ctx, "gcloud", args...)
 }
 
 // ensureSecondaryRange guarantees that the named secondary range on the GCE
