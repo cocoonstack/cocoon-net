@@ -6,8 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
-	"os/exec"
 	"slices"
 	"strings"
 
@@ -77,7 +75,9 @@ func ruleDest(fields []string) (string, bool) {
 
 // setupIPTables installs the FORWARD rules between secondary NICs and the
 // bridge, a NAT MASQUERADE rule for outbound VM traffic, and egress DROP rules
-// isolating VMs from their own subnet (dropInternal) and from dropCIDRs.
+// blocking VM traffic to dropCIDRs (e.g. the cross-node VM supernet). Same-node
+// VM-to-VM isolation is done at L2 by the CNI bridge plugin's portIsolation, so
+// these routed DROP rules need no br_netfilter / bridge-nf-call-iptables.
 func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []string, dropInternal bool, dropCIDRs []string) error {
 	logger := log.WithFunc("node.setupIPTables")
 
@@ -111,14 +111,11 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 	}
 
 	if len(dropTargets) > 0 {
-		// Same-node VM-to-VM is L2-switched on cni0 and bypasses iptables
-		// unless bridge-nf-call-iptables is on; enable it (fail closed) first.
-		if err := ensureBridgeNFCall(ctx); err != nil {
-			return fmt.Errorf("enable bridge netfilter: %w", err)
-		}
-
-		// Insert at FORWARD's head so DROP precedes the ACCEPT rules; the -i
-		// match spares return traffic, and VM-to-gateway is INPUT, not FORWARD.
+		// dropTargets are off-bridge (cross-node VM supernet / external), so VM
+		// traffic to them is L3-routed and traverses FORWARD without br_netfilter;
+		// same-node VM-to-VM stays on cni0 (L2) and is blocked by the CNI bridge
+		// portIsolation flag instead. Insert at FORWARD's head so DROP precedes
+		// the ACCEPT rules; the -i match spares return traffic, VM-to-gateway is INPUT.
 		for _, dst := range dropTargets {
 			if err := iptInsert(ipt, "filter", "FORWARD", "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
 				return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
@@ -159,45 +156,6 @@ func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string
 		out = append(out, ipNet.String())
 	}
 	return out, nil
-}
-
-// ensureBridgeNFCall loads br_netfilter and turns on bridge-nf-call-iptables so
-// same-bridge (same-node VM-to-VM) frames traverse iptables. It verifies the
-// toggle stuck, failing closed rather than leaving DROP rules the kernel would
-// quietly skip for L2-switched traffic.
-func ensureBridgeNFCall(ctx context.Context) error {
-	logger := log.WithFunc("node.ensureBridgeNFCall")
-
-	// modprobe is the authoritative loader for a kernel module and its deps,
-	// with no stdlib equivalent; it is a no-op when br_netfilter is loaded.
-	logger.Debug(ctx, "running modprobe br_netfilter (external binary)")
-	if out, err := exec.CommandContext(ctx, "modprobe", "br_netfilter").CombinedOutput(); err != nil {
-		return fmt.Errorf("modprobe br_netfilter (%s): %w", strings.TrimSpace(string(out)), err)
-	}
-
-	const key = "net.bridge.bridge-nf-call-iptables"
-	if err := writeSysctl(key, "1"); err != nil {
-		return fmt.Errorf("write sysctl %s=1: %w", key, err)
-	}
-	got, err := readSysctl(key)
-	if err != nil {
-		return fmt.Errorf("read sysctl %s: %w", key, err)
-	}
-	if got != "1" {
-		return fmt.Errorf("sysctl %s is %q after write, want 1", key, got)
-	}
-
-	logger.Info(ctx, "br_netfilter loaded, bridge-nf-call-iptables=1")
-	return nil
-}
-
-// readSysctl reads a sysctl value via /proc/sys, trimming surrounding whitespace.
-func readSysctl(key string) (string, error) {
-	b, err := os.ReadFile(sysctlPath(key)) //nolint:gosec // sysctl read of a known proc path
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
 }
 
 // iptEnsure appends an iptables rule if it does not already exist.
