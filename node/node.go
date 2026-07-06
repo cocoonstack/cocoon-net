@@ -33,9 +33,8 @@ type Config struct {
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
 
-	// DropInternalAccess adds a FORWARD DROP for SubnetCIDR. Same-node VM-to-VM
-	// is L2 (off FORWARD) and is isolated by the CNI bridge portIsolation flag
-	// instead; for cross-node VM-to-VM use DropCIDRs with the fleet VM supernet.
+	// DropInternalAccess adds a FORWARD DROP for SubnetCIDR. Same-node VM-to-VM is
+	// isolated at L2 by portIsolation instead; use DropCIDRs for cross-node.
 	// Ignored when SkipIPTables is set.
 	DropInternalAccess bool
 
@@ -88,8 +87,8 @@ func writeCNIConflist(ctx context.Context) error {
 				"bridge":        BridgeName,
 				"isGateway":     false,
 				"ipMasq":        false,
-				"portIsolation": true, // same-node VM-to-VM blocked at L2 (BR_ISOLATED per veth); cross-node via setupIPTables
-				"macspoofchk":   true, // pin veth source MAC (nft, no conntrack) — anti MAC-spoof / FDB hijack
+				"portIsolation": true, // block same-node VM-to-VM at L2 (BR_ISOLATED per veth)
+				"macspoofchk":   true, // pin veth source MAC (anti-spoof)
 				"ipam":          map[string]any{},
 			},
 		},
