@@ -71,31 +71,37 @@ sudo cocoon-net init \
   --pool-size 140
 ```
 
-#### VM egress isolation (`--drop-internal-access`, `--drop-cidr`)
+#### VM isolation
 
-Both flags (accepted by `init` and `adopt`) block VM-originated traffic and are
-persisted to `pool.json`, reapplied by the daemon as `FORWARD` DROP rules at the
-head of the chain so they win over the default accept rules. Return traffic and
-internet egress are unaffected.
+**Same-node VM-to-VM** and **anti-spoofing** are handled at L2 by the CNI
+`bridge` plugin, baked into the generated conflist (`writeCNIConflist`):
 
-- `--drop-internal-access` blocks **VM-to-VM** traffic within the cocoon subnet.
-  cocoon-net already knows the subnet from `--subnet`, so there is no CIDR to
-  restate.
-- `--drop-cidr` (repeatable) blocks additional **external** destination ranges,
-  e.g. internal/VPC management networks.
+- `portIsolation: true` — sets the kernel `BR_ISOLATED` flag on every VM's veth,
+  so same-bridge (same-node) VMs cannot exchange any frames (unicast, ARP,
+  broadcast) with each other, while still reaching the bridge gateway and
+  routing out. Pure L2 — no `br_netfilter`, no conntrack.
+- `macspoofchk: true` — nftables (bridge family) rule pinning each veth's source
+  MAC to its assigned address; blocks MAC spoofing / FDB hijack. Stateless.
 
-Same-node VMs share `cni0` and are switched at L2, which bypasses iptables
-unless `bridge-nf-call-iptables=1`. When either flag is set, node setup loads
-`br_netfilter` and enables that toggle, **failing closed** if it cannot — so the
-isolation is never silently a no-op. The DROP rules are tagged `cocoon-net-drop`,
-so `teardown` removes exactly them.
+**Cross-node VM-to-VM** and **external ranges** are blocked at L3 via `--drop-cidr`:
+
+- `--drop-cidr` (repeatable, `init`/`adopt`) adds `FORWARD -i cni0 -d <CIDR> -j DROP`
+  at the head of the chain, persisted to `pool.json` and reapplied by the daemon.
+  Cross-node VM traffic is L3-routed so it traverses `FORWARD` naturally — **no
+  `br_netfilter` needed**. Pass the fleet VM supernet (e.g. `--drop-cidr
+  172.22.0.0/16`) to block VM-to-VM across all nodes, plus any management ranges.
+- `--drop-internal-access` only adds a `FORWARD` DROP for the node's own
+  `--subnet`; since same-node VM-to-VM is L2 (off `FORWARD`) and now covered by
+  `portIsolation`, this flag is largely superseded — prefer `--drop-cidr`.
+
+Return traffic and internet egress are unaffected. DROP rules are tagged
+`cocoon-net-drop`, so `teardown` removes exactly them.
 
 ```bash
 sudo cocoon-net init \
   --platform gke --node-name cocoon-pool \
-  --subnet 172.20.100.0/24 --pool-size 140 \
-  --drop-internal-access \
-  --drop-cidr 10.0.0.0/8
+  --subnet 172.22.0.0/24 --pool-size 140 \
+  --drop-cidr 172.22.0.0/16
 ```
 
 > Note: traffic to the node's own address (e.g. a kubelet bound on the cni0

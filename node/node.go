@@ -33,9 +33,10 @@ type Config struct {
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
 
-	// DropInternalAccess blocks VM-to-VM traffic within SubnetCIDR (cocoon's
-	// own range). Enforced as a FORWARD DROP; node setup enables the
-	// bridge-nf-call-iptables it relies on. Ignored when SkipIPTables is set.
+	// DropInternalAccess adds a FORWARD DROP for SubnetCIDR. Same-node VM-to-VM
+	// is L2 (off FORWARD) and is isolated by the CNI bridge portIsolation flag
+	// instead; for cross-node VM-to-VM use DropCIDRs with the fleet VM supernet.
+	// Ignored when SkipIPTables is set.
 	DropInternalAccess bool
 
 	// DropCIDRs lists additional external destination CIDRs VM traffic is
@@ -83,11 +84,13 @@ func writeCNIConflist(ctx context.Context) error {
 		"name":       "cocoon-dhcp",
 		"plugins": []map[string]any{
 			{
-				"type":      "bridge",
-				"bridge":    BridgeName,
-				"isGateway": false,
-				"ipMasq":    false,
-				"ipam":      map[string]any{},
+				"type":          "bridge",
+				"bridge":        BridgeName,
+				"isGateway":     false,
+				"ipMasq":        false,
+				"portIsolation": true, // same-node VM-to-VM blocked at L2 (BR_ISOLATED per veth); cross-node via setupIPTables
+				"macspoofchk":   true, // pin veth source MAC (nft, no conntrack) — anti MAC-spoof / FDB hijack
+				"ipam":          map[string]any{},
 			},
 		},
 	}
