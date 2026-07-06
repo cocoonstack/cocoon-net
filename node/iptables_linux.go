@@ -73,11 +73,9 @@ func ruleDest(fields []string) (string, bool) {
 	return "", false
 }
 
-// setupIPTables installs the FORWARD rules between secondary NICs and the
-// bridge, a NAT MASQUERADE rule for outbound VM traffic, and egress DROP rules
-// blocking VM traffic to dropCIDRs (e.g. the cross-node VM supernet). Same-node
-// VM-to-VM isolation is done at L2 by the CNI bridge plugin's portIsolation, so
-// these routed DROP rules need no br_netfilter / bridge-nf-call-iptables.
+// setupIPTables installs FORWARD rules between secondary NICs and the bridge, a NAT
+// MASQUERADE for outbound VM traffic, and egress DROP rules blocking VM traffic to
+// dropCIDRs: L3-routed cross-node/external ranges that need no br_netfilter.
 func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []string, dropInternal bool, dropCIDRs []string) error {
 	logger := log.WithFunc("node.setupIPTables")
 
@@ -111,11 +109,8 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 	}
 
 	if len(dropTargets) > 0 {
-		// dropTargets are off-bridge (cross-node VM supernet / external), so VM
-		// traffic to them is L3-routed and traverses FORWARD without br_netfilter;
-		// same-node VM-to-VM stays on cni0 (L2) and is blocked by the CNI bridge
-		// portIsolation flag instead. Insert at FORWARD's head so DROP precedes
-		// the ACCEPT rules; the -i match spares return traffic, VM-to-gateway is INPUT.
+		// Insert at FORWARD's head so DROP precedes the ACCEPT rules; the -i match
+		// spares return traffic, VM-to-gateway is INPUT not FORWARD.
 		for _, dst := range dropTargets {
 			if err := iptInsert(ipt, "filter", "FORWARD", "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
 				return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
