@@ -34,9 +34,7 @@ func FirstHostIP(cidr string) (string, error) {
 	if !prefix.Addr().Is4() {
 		return "", fmt.Errorf("cidr %s is not IPv4", cidr)
 	}
-	// prefix.Masked() gives the network address; .Next() increments IPv4 with
-	// proper carry, so we never hit the "last octet overflow" bug that a naive
-	// byte increment (e.g. ip[3]+1) would produce when the network ends in .255.
+	// .Next() carries across octets, so a network ending in .255 still increments correctly.
 	first := prefix.Masked().Addr().Next()
 	if !first.IsValid() {
 		return "", fmt.Errorf("cidr %s has no host IPs", cidr)

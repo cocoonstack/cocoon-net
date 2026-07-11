@@ -20,6 +20,9 @@ func fetchMeta(ctx context.Context, path string) (string, error) {
 		return "", fmt.Errorf("fetch %s: %w", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetch %s: status %d", path, resp.StatusCode)
+	}
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("read %s: %w", path, err)

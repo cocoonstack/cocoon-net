@@ -18,10 +18,10 @@ func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string)
 	logger := log.WithFunc("node.setupSysctl")
 
 	required := map[string]string{
-		"net.ipv4.ip_forward":             "1",
-		"net.ipv4.conf.all.rp_filter":     "0",
-		"net.ipv4.conf.default.rp_filter": "0",
-		"net.ipv4.conf.cni0.rp_filter":    "0",
+		"net.ipv4.ip_forward":                        "1",
+		"net.ipv4.conf.all.rp_filter":                "0",
+		"net.ipv4.conf.default.rp_filter":            "0",
+		"net.ipv4.conf." + BridgeName + ".rp_filter": "0",
 	}
 	for key, val := range required {
 		if err := writeSysctl(key, val); err != nil {

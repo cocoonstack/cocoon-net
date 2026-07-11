@@ -59,10 +59,7 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			"--InstanceId", instanceID,
 		)
 		if attachErr != nil {
-			// Attach failed: this ENI is unusable. Best-effort delete to
-			// avoid leaking quota (log-only — the attach failure is the
-			// primary signal). Degraded, not fatal: remaining ENIs can
-			// still build a usable pool.
+			// Best-effort delete to avoid leaking ENI quota; degraded not fatal, keep building the pool.
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
 			if _, delErr := veRun(
 				ctx, "vpc", "DeleteNetworkInterface",

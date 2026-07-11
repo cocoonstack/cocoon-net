@@ -27,7 +27,6 @@ func newIPPool(ips []net.IP) *ipPool {
 	}
 }
 
-// allocate returns an available IP and removes it from the free set.
 func (p *ipPool) allocate() net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -39,7 +38,6 @@ func (p *ipPool) allocate() net.IP {
 	return nil
 }
 
-// release returns an IP to the free pool.
 func (p *ipPool) release(ip net.IP) {
 	v4 := ip.To4()
 	if v4 == nil {
@@ -84,7 +82,6 @@ func (p *ipPool) tryClaim(ip net.IP) bool {
 	return true
 }
 
-// freeCount returns the number of unallocated IPs.
 func (p *ipPool) freeCount() int {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

@@ -50,9 +50,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	for _, eniID := range eniIDs {
 		ips, assignErr := assignSecondaryIPs(ctx, eniID, ipsPerENI)
 		if assignErr != nil {
-			// Partial-failure: this ENI is abandoned but other ENIs may still
-			// yield a usable pool. Degraded path; bail out below only if
-			// every ENI failed.
+			// One ENI's failure is tolerable; the len(allIPs)==0 guard below aborts only if every ENI failed.
 			logger.Warnf(ctx, "assign secondary IPs to %s: %v", eniID, assignErr)
 			continue
 		}
@@ -63,9 +61,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
-	// Bring up secondary interfaces via netlink. A failure here means the
-	// secondary NIC is down and its assigned IPs are unreachable, so the
-	// pool would hand out unusable addresses — fail fast instead.
+	// A down secondary NIC makes its assigned IPs unreachable, so fail fast rather than pool dead addresses.
 	secondaryNICs := platform.DefaultSecondaryNICs(v.Name())
 	for _, iface := range secondaryNICs {
 		if linkErr := bringLinkUp(iface); linkErr != nil {

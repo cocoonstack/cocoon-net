@@ -12,9 +12,7 @@ const (
 	PlatformGKE        = "gke"
 	PlatformVolcengine = "volcengine"
 
-	// volcengineSecondaryNICCount is the fixed number of secondary ENIs per
-	// Volcengine node (eth1..eth7). This matches the platform's default ENI
-	// quota per instance.
+	// volcengineSecondaryNICCount matches Volcengine's default ENI quota per instance (eth1..eth7).
 	volcengineSecondaryNICCount = 7
 )
 

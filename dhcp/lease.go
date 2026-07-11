@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
 
 const leaseFilePerm = 0o644
 
-// lease represents a single DHCP lease.
 type lease struct {
 	MAC    net.HardwareAddr
 	IP     net.IP
@@ -129,7 +129,6 @@ func (s *leaseStore) activeCount() int {
 	return len(s.activeLeases())
 }
 
-// expireOld removes expired leases and returns them.
 func (s *leaseStore) expireOld() []lease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -159,12 +158,31 @@ func (s *leaseStore) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal leases: %w", err)
 	}
-	// Atomic write: temp file + rename to prevent corruption on crash.
-	tmp := s.filePath + ".tmp"
-	if err := os.WriteFile(tmp, data, leaseFilePerm); err != nil { //nolint:gosec
+	// Atomic write via a UNIQUE temp file per call, then rename. save() holds
+	// only RLock, so concurrent savers (request/release/cleanup goroutines) must
+	// not share a fixed temp path or their O_TRUNC writes interleave and rename
+	// publishes a corrupt leases.json.
+	tmp, err := os.CreateTemp(filepath.Dir(s.filePath), "leases-*.json")
+	if err != nil {
+		return fmt.Errorf("create leases tmp: %w", err)
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("write leases tmp: %w", err)
 	}
-	if err := os.Rename(tmp, s.filePath); err != nil {
+	if err := tmp.Chmod(leaseFilePerm); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("chmod leases tmp: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close leases tmp: %w", err)
+	}
+	if err := os.Rename(tmpPath, s.filePath); err != nil {
+		_ = os.Remove(tmpPath)
 		return fmt.Errorf("rename leases: %w", err)
 	}
 	return nil

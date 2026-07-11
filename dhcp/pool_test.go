@@ -58,14 +58,12 @@ func TestIPPool_TryClaimRace(t *testing.T) {
 	)
 	start.Add(1)
 	for range goroutines {
-		done.Add(1)
-		go func() {
-			defer done.Done()
+		done.Go(func() {
 			start.Wait()
 			if pool.tryClaim(ip) {
 				wins.Add(1)
 			}
-		}()
+		})
 	}
 	start.Done()
 	done.Wait()
@@ -93,14 +91,12 @@ func TestIPPool_TryClaimRaceManyIPs(t *testing.T) {
 	)
 	start.Add(1)
 	for range 32 {
-		done.Add(1)
-		go func() {
-			defer done.Done()
+		done.Go(func() {
 			start.Wait()
 			if pool.tryClaim(ip) {
 				wins.Add(1)
 			}
-		}()
+		})
 	}
 	start.Done()
 	done.Wait()
