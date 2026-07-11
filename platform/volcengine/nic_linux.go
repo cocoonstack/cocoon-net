@@ -9,7 +9,6 @@ import (
 )
 
 // bringLinkUp sets the given interface to the UP state via netlink.
-// Replaces a prior `ip link set <iface> up` subprocess.
 func bringLinkUp(iface string) error {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {

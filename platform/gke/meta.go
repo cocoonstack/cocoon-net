@@ -23,6 +23,9 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 			return "", doErr
 		}
 		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusOK {
+			return "", fmt.Errorf("metadata %s: status %d", path, resp.StatusCode)
+		}
 		b, readErr := io.ReadAll(resp.Body)
 		return strings.TrimSpace(string(b)), readErr
 	}

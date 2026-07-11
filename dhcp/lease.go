@@ -25,19 +25,19 @@ type leaseEntry struct {
 	Expiry string `json:"expiry"`
 }
 
-// leaseStore manages active leases with persistence to a JSON file.
-type leaseStore struct {
-	mu       sync.RWMutex
-	leases   map[string]*lease // keyed by MAC string
-	filePath string
-}
-
 // evictedLease describes a lease entry displaced by add(). Same-MAC
 // rebind leaves the old IP's route + pool slot orphaned; other-MAC
 // conflict is reported for logging.
 type evictedLease struct {
 	MAC string
 	IP  net.IP
+}
+
+// leaseStore manages active leases with persistence to a JSON file.
+type leaseStore struct {
+	mu       sync.RWMutex
+	leases   map[string]*lease // keyed by MAC string
+	filePath string
 }
 
 func newLeaseStore(filePath string) *leaseStore {

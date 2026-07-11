@@ -18,7 +18,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		reqIP = msg.ClientIPAddr
 	}
 	if reqIP == nil || reqIP.IsUnspecified() {
-		logger.Infof(ctx, "REQUEST from %s: no IP requested", mac)
+		logger.Warnf(ctx, "REQUEST from %s: no IP requested", mac)
 		return
 	}
 
