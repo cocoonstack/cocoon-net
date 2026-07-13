@@ -25,13 +25,13 @@ Volcengine VPC (172.20.0.0/16)
 ├── Subnet: 172.20.100.0/24  (cocoon-pool VM IPs)
 ├── Subnet: 172.20.101.0/24  (cocoon-pool-2 VM IPs)
 │
-├── volc-ebm1 (172.20.9.230)
+├── node-1 (172.20.9.230)
 │   ├── eth0: primary ENI (172.20.0.0/20)
 │   ├── eth1~eth7: secondary ENIs (172.20.100.0/24) ← just UP, no IP needed
 │   └── cni0 bridge (172.20.100.1/24)
 │       └── Windows VMs: 172.20.100.x (DHCP from secondary IP pool)
 │
-└── volc-ebm2 (172.20.9.231)
+└── node-2 (172.20.9.231)
     ├── eth0: primary ENI (172.20.0.0/20)
     ├── eth1~eth7: secondary ENIs (172.20.101.0/24)
     └── cni0 bridge (172.20.101.1/24)
@@ -225,8 +225,8 @@ ve vpc AuthorizeSecurityGroupIngress \
 | Range | Assignment |
 |---|---|
 | `172.20.0.0/20` | Host subnet (EBM nodes, VKE nodes) |
-| `172.20.100.0/24` | cocoon-pool (volc-ebm1) VM IPs |
-| `172.20.101.0/24` | cocoon-pool-2 (volc-ebm2) VM IPs |
+| `172.20.100.0/24` | cocoon-pool (node-1) VM IPs |
+| `172.20.101.0/24` | cocoon-pool-2 (node-2) VM IPs |
 | `172.20.N.0/24` | Future node-N |
 
 ## Limits

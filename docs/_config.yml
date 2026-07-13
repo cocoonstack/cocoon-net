@@ -1,0 +1,3 @@
+title: cocoon-net
+description: Per-host VPC-native networking for cocoon VMs (embedded DHCP, GKE, Volcengine)
+theme: jekyll-theme-primer

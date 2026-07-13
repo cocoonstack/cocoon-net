@@ -9,13 +9,13 @@ GKE VPC (e.g. 10.0.0.0/8)
 ├── Primary subnet (GKE nodes, pods)
 │   └── Secondary IP range: cocoon-pods=172.20.0.0/16
 │
-├── cocoonset-node-1 (GCE instance)
+├── node-1 (GCE instance)
 │   ├── ens4: primary NIC (VPC)
 │   │   └── alias IP range: 172.20.100.0/24
 │   └── cni0 bridge (172.20.100.1/24)
 │       └── Windows/Linux VMs: 172.20.100.x (DHCP from alias range)
 │
-└── cocoonset-node-2 (GCE instance)
+└── node-2 (GCE instance)
     ├── ens4: primary NIC (VPC)
     │   └── alias IP range: 172.20.101.0/24
     └── cni0 bridge (172.20.101.1/24)
@@ -105,7 +105,7 @@ gcloud compute networks subnets update default \
 ### 2. Assign alias IP to instance
 
 ```bash
-gcloud compute instances network-interfaces update cocoonset-node-1 \
+gcloud compute instances network-interfaces update node-1 \
   --zone=asia-southeast1-b \
   --network-interface=nic0 \
   --aliases="cocoon-pods:172.20.100.0/24"
@@ -204,7 +204,7 @@ EOF
 Allow GKE master to reach vk-cocoon kubelet API (port 10250):
 
 ```bash
-gcloud compute instances add-tags cocoonset-node-1 \
+gcloud compute instances add-tags node-1 \
   --zone=asia-southeast1-b --tags=cocoonset-node
 
 MASTER_CIDR=$(gcloud container clusters describe <CLUSTER> \
