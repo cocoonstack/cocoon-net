@@ -3,7 +3,6 @@ package volcengine
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/projecteru2/core/log"
 
@@ -42,7 +41,9 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 		}
 
 		// Wait for detach to propagate before deleting.
-		time.Sleep(attachPropagationDelay)
+		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
+			return err
+		}
 
 		_, delErr := veRun(
 			ctx, "vpc", "DeleteNetworkInterface",

@@ -51,7 +51,9 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 		}
 		eniID := resp.Result.NetworkInterfaceID
 
-		time.Sleep(createPropagationDelay)
+		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
+			return eniIDs, err
+		}
 
 		_, attachErr := veRun(
 			ctx, "vpc", "AttachNetworkInterface",
@@ -70,7 +72,9 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			continue
 		}
 
-		time.Sleep(attachPropagationDelay)
+		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
+			return eniIDs, err
+		}
 
 		eniIDs = append(eniIDs, eniID)
 		logger.Infof(ctx, "created and attached ENI %s (%d/%d)", eniID, i, count)

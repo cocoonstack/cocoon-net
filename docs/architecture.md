@@ -71,12 +71,16 @@ Both `init` and `adopt` write `/etc/cni/net.d/30-cocoon-dhcp.conflist`:
     "bridge": "cni0",
     "isGateway": false,
     "ipMasq": false,
+    "portIsolation": true,
+    "macspoofchk": true,
     "ipam": {}
   }]
 }
 ```
 
-IPAM is intentionally empty -- VMs obtain their IP from the [embedded DHCP
+`portIsolation` blocks same-node VM-to-VM traffic at L2 and `macspoofchk`
+pins each veth's source MAC (see [Traffic isolation](dhcp.md)). IPAM is
+intentionally empty -- VMs obtain their IP from the [embedded DHCP
 server](dhcp.md), not from CNI. In a CocoonSet:
 
 ```yaml

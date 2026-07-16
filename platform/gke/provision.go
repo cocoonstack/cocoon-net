@@ -25,7 +25,11 @@ func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*plat
 	}
 	logger.Infof(ctx, "instance=%s zone=%s project=%s subnet=%s", instance, zone, project, subnet)
 
-	region := zone[:strings.LastIndex(zone, "-")]
+	dash := strings.LastIndex(zone, "-")
+	if dash < 0 {
+		return nil, fmt.Errorf("malformed gce zone %q: no region suffix", zone)
+	}
+	region := zone[:dash]
 
 	if err = ensureSecondaryRange(ctx, project, region, subnet, cfg.SubnetCIDR); err != nil {
 		return nil, fmt.Errorf("ensure secondary range: %w", err)

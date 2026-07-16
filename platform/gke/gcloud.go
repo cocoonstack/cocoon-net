@@ -23,9 +23,6 @@ type aliasEntry struct {
 	IPCIDRRange string `json:"ipCidrRange"`
 }
 
-// String renders the entry in the NAME:CIDR form gcloud expects for
-// `--aliases` and prints in describe output. Entries without a range name
-// come from the subnet's primary range and are passed as CIDR-only.
 func (a aliasEntry) String() string {
 	if a.RangeName == "" {
 		return a.IPCIDRRange
@@ -183,13 +180,9 @@ func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([
 	return nil, fmt.Errorf("%s not found on instance %s", nic0Name, instance)
 }
 
-// fixGuestAgentRoute removes the local route the GCE guest agent auto-installs
-// for alias ranges (which would otherwise black-hole traffic back to the VM)
-// and persists a reboot cron entry to re-apply the fix.
-//
-// The in-process route delete uses netlink (see route_linux.go / route_stub.go)
-// so we never shell out to `ip route`. The cron fallback still uses `ip route`
-// because it runs at boot, well before our daemon.
+// fixGuestAgentRoute deletes the local route the GCE guest agent auto-installs
+// for alias ranges (it would black-hole VM return traffic) and persists a boot
+// cron to re-apply it — the cron shells out to `ip route` since it runs before the daemon.
 func fixGuestAgentRoute(ctx context.Context, nic, cidr string) error {
 	logger := log.WithFunc("gke.fixGuestAgentRoute")
 

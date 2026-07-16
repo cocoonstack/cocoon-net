@@ -22,12 +22,25 @@ variable; runtime state (what was provisioned, and for whom) lives in
 | `--dry-run` | `false` | Preview changes without applying |
 | `--skip-iptables` | `false` | (daemon) Skip iptables setup |
 | `--manage-iptables` | `false` | (adopt) Let cocoon-net write iptables rules |
+| `--metrics-addr` | `:9092` | (daemon) Prometheus listen address for `/metrics`; empty to disable |
 
 ## Environment variables
 
 | Variable | Default | Description |
 |---|---|---|
 | `COCOON_NET_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
+| `COCOON_NET_METRICS_ADDR` | `:9092` | Prometheus metrics listen address (overridden by `--metrics-addr`) |
+
+## Metrics
+
+The daemon serves Prometheus metrics on `--metrics-addr` (`:9092` by
+default) at `/metrics`:
+
+| Metric | Type | Description |
+|---|---|---|
+| `cocoon_net_dhcp_lease_total{result}` | counter | DHCP lease-grant attempts by outcome (`ok`/`failed`) |
+| `cocoon_net_dhcp_pool_available` | gauge | Unallocated IPs in the DHCP pool |
+| `cocoon_net_dhcp_lease_active` | gauge | Active (unexpired) DHCP leases |
 
 ## Pool state (`pool.json`)
 
