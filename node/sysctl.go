@@ -49,7 +49,6 @@ func writeSysctl(key, val string) error {
 	return os.WriteFile(sysctlPath(key), []byte(val), filePerm) //nolint:gosec // sysctl tuning
 }
 
-// sysctlPath maps a dotted sysctl key to its /proc/sys file path.
 func sysctlPath(key string) string {
 	return filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/"))
 }

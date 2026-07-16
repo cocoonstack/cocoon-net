@@ -8,8 +8,7 @@ import (
 )
 
 // ProbeMetadata GETs url with the given headers and reports whether the
-// response was 200 OK, draining and closing the body either way. Used by
-// each cloud platform's Detect() to probe its instance metadata endpoint.
+// response was 200 OK, draining and closing the body either way.
 func ProbeMetadata(ctx context.Context, url string, headers map[string]string, timeout time.Duration) bool {
 	client := &http.Client{Timeout: timeout}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

@@ -7,7 +7,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Status returns the current ENI and IP status.
 func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
 	instanceID, err := fetchMeta(ctx, "/instance-id")
 	if err != nil {

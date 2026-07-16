@@ -37,7 +37,6 @@ type Config struct {
 	SubnetCIDR string
 	PoolSize   int
 	Gateway    string
-	DNSServers []string
 	PrimaryNIC string
 }
 

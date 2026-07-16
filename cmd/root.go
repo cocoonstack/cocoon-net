@@ -76,8 +76,6 @@ func newPlatform(ctx context.Context, name string) (platform.CloudPlatform, erro
 	}
 }
 
-// detectPlatform concurrently probes each provider's metadata endpoint and
-// returns the platform identifier of the one that responded.
 func detectPlatform(ctx context.Context) (string, error) {
 	logger := log.WithFunc("cmd.detectPlatform")
 

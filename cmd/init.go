@@ -38,7 +38,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		SubnetCIDR: flagSubnet,
 		PoolSize:   flagPoolSize,
 		Gateway:    flagGateway,
-		DNSServers: dnsServers,
 		PrimaryNIC: flagPrimaryNIC,
 	}
 
@@ -48,7 +47,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  node-name:  %s\n", cfg.NodeName)
 		fmt.Printf("  subnet:     %s\n", cfg.SubnetCIDR)
 		fmt.Printf("  pool-size:  %d\n", cfg.PoolSize)
-		fmt.Printf("  dns:        %s\n", strings.Join(cfg.DNSServers, ","))
+		fmt.Printf("  dns:        %s\n", strings.Join(dnsServers, ","))
 		fmt.Printf("  drop-internal: %v\n", flagDropInternal)
 		fmt.Printf("  drop-cidr:  %s\n", strings.Join(flagDropCIDRs, ","))
 		fmt.Printf("  state-dir:  %s\n", flagStateDir)

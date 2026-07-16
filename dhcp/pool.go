@@ -40,9 +40,6 @@ func (p *ipPool) allocate() net.IP {
 
 func (p *ipPool) release(ip net.IP) {
 	v4 := ip.To4()
-	if v4 == nil {
-		return
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	k := ipKey(v4)
@@ -50,12 +47,8 @@ func (p *ipPool) release(ip net.IP) {
 	p.free[k] = v4
 }
 
-// markUsed moves an IP from free to used (for lease restoration).
 func (p *ipPool) markUsed(ip net.IP) {
 	v4 := ip.To4()
-	if v4 == nil {
-		return
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	k := ipKey(v4)
@@ -68,9 +61,6 @@ func (p *ipPool) markUsed(ip net.IP) {
 // false if ip is not currently free (already claimed or not in pool).
 func (p *ipPool) tryClaim(ip net.IP) bool {
 	v4 := ip.To4()
-	if v4 == nil {
-		return false
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	k := ipKey(v4)

@@ -79,8 +79,6 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpv4.ServerPort}
-	// Bind ctx to the packet handler via a closure so handlers don't need
-	// to stash it on the Server struct.
 	srv, err := server4.NewServer(s.conf.Interface, laddr,
 		func(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
 			s.handler(ctx, conn, peer, msg)
@@ -125,7 +123,6 @@ func (s *Server) PoolAvailable() int { return s.pool.freeCount() }
 // ActiveLeaseCount returns the number of unexpired leases, read per metrics scrape.
 func (s *Server) ActiveLeaseCount() int { return s.leases.activeCount() }
 
-// handler dispatches each DHCP packet to a message-type-specific handler.
 func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
 	if msg.OpCode != dhcpv4.OpcodeBootRequest {
 		return

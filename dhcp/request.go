@@ -33,9 +33,6 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// tryClaim atomically moves free→used so two concurrent REQUESTs
-	// for the same free IP cannot both win; skipped when this MAC
-	// already holds the IP via a prior offer or active lease.
 	alreadyHeld := s.offers.isOfferedTo(mac, reqIP) || s.leases.isLeasedTo(mac, reqIP)
 	if !alreadyHeld && !s.pool.tryClaim(reqIP) {
 		s.sendNAK(ctx, conn, peer, msg)

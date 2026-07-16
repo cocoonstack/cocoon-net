@@ -11,7 +11,6 @@ import (
 func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
 	logger := log.WithFunc("dhcp.handleDiscover")
 
-	// Re-offer existing lease first.
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
 		var staleIP net.IP
@@ -26,8 +25,6 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 			logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
 			return
 		}
-		// Track as pending offer (not yet committed as lease).
-		// If this MAC had a stale offer for a different IP, release it.
 		if oldIP := s.offers.add(mac, ip); oldIP != nil {
 			s.pool.release(oldIP)
 		}

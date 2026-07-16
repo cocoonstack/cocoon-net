@@ -10,7 +10,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// ProvisionNetwork configures a GCE alias IP range for the node.
 func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
 	logger := log.WithFunc("gke.ProvisionNetwork")
 

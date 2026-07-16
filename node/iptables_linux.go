@@ -65,7 +65,6 @@ func reconcileDropRules(ctx context.Context, ipt *iptables.IPTables, want []stri
 	return nil
 }
 
-// ruleDest returns the -d destination from an iptables -S rule's fields.
 func ruleDest(fields []string) (string, bool) {
 	if i := slices.Index(fields, "-d"); i >= 0 && i+1 < len(fields) {
 		return fields[i+1], true
@@ -153,7 +152,6 @@ func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string
 	return out, nil
 }
 
-// iptEnsure appends an iptables rule if it does not already exist.
 func iptEnsure(ipt *iptables.IPTables, table, chain string, args ...string) error {
 	exists, err := ipt.Exists(table, chain, args...)
 	if err != nil {
@@ -168,8 +166,6 @@ func iptEnsure(ipt *iptables.IPTables, table, chain string, args ...string) erro
 	return nil
 }
 
-// iptInsert inserts an iptables rule at the head of the chain if it does not
-// already exist, so the rule takes precedence over appended rules.
 func iptInsert(ipt *iptables.IPTables, table, chain string, args ...string) error {
 	exists, err := ipt.Exists(table, chain, args...)
 	if err != nil {

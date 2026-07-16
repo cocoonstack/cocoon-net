@@ -8,7 +8,6 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// buildReply constructs a DHCP reply with standard options.
 func (s *Server) buildReply(req *dhcpv4.DHCPv4, msgType dhcpv4.MessageType, ip net.IP) (*dhcpv4.DHCPv4, error) {
 	return dhcpv4.NewReplyFromRequest(
 		req,

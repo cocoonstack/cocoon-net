@@ -33,18 +33,15 @@ func acquirePIDFile() error {
 func checkExistingPID() error {
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
-		return nil // no PID file, safe to proceed
+		return nil
 	}
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		return nil // corrupt PID file, overwrite
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
 		return nil
 	}
+	proc, _ := os.FindProcess(pid)
 	if proc.Signal(syscall.Signal(0)) == nil {
 		return fmt.Errorf("another cocoon-net daemon is running (pid %d)", pid)
 	}
-	return nil // stale PID, process dead
+	return nil
 }

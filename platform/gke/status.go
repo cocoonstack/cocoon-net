@@ -7,8 +7,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Status reports the alias IP ranges currently bound to nic0, giving
-// operators a view of cloud-side reality to compare against pool.json.
 func (g *GKE) Status(ctx context.Context) (*platform.PoolStatus, error) {
 	instance, zone, project, _, err := fetchMetadata(ctx)
 	if err != nil {

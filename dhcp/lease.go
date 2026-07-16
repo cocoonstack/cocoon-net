@@ -18,7 +18,6 @@ type lease struct {
 	Expiry time.Time
 }
 
-// leaseEntry is the JSON-serializable form of a lease.
 type leaseEntry struct {
 	MAC    string `json:"mac"`
 	IP     string `json:"ip"`
@@ -33,7 +32,6 @@ type evictedLease struct {
 	IP  net.IP
 }
 
-// leaseStore manages active leases with persistence to a JSON file.
 type leaseStore struct {
 	mu       sync.RWMutex
 	leases   map[string]*lease // keyed by MAC string
@@ -99,7 +97,6 @@ func (s *leaseStore) isLeasedTo(mac net.HardwareAddr, ip net.IP) bool {
 	return ok && l.IP.Equal(ip) && time.Now().Before(l.Expiry)
 }
 
-// isLeasedToOther returns true if ip is actively leased to a different MAC.
 func (s *leaseStore) isLeasedToOther(mac net.HardwareAddr, ip net.IP) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

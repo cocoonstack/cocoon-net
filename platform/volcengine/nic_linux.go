@@ -8,7 +8,6 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// bringLinkUp sets the given interface to the UP state via netlink.
 func bringLinkUp(iface string) error {
 	link, err := netlink.LinkByName(iface)
 	if err != nil {

@@ -9,9 +9,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Teardown detaches and deletes all secondary ENIs for this instance.
-// cfg is ignored because Volcengine teardown walks whatever secondary ENIs
-// are currently attached rather than relying on persisted state.
+// cfg is ignored: teardown walks the ENIs currently attached rather than persisted state.
 func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) error {
 	logger := log.WithFunc("volcengine.Teardown")
 
@@ -40,7 +38,6 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 			continue
 		}
 
-		// Wait for detach to propagate before deleting.
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
 			return err
 		}

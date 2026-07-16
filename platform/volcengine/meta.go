@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// fetchMeta fetches a value from the Volcengine instance metadata service.
 func fetchMeta(ctx context.Context, path string) (string, error) {
 	client := &http.Client{Timeout: metadataTimeout}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataBase+path, nil)

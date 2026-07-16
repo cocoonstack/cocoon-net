@@ -7,7 +7,6 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// restoreLeases re-adds /32 routes for all non-expired leases on startup.
 func (s *Server) restoreLeases(ctx context.Context) {
 	logger := log.WithFunc("dhcp.restoreLeases")
 	active := s.leases.activeLeases()
@@ -22,7 +21,6 @@ func (s *Server) restoreLeases(ctx context.Context) {
 	}
 }
 
-// cleanupLoop periodically removes expired leases and abandoned offers.
 func (s *Server) cleanupLoop(ctx context.Context) {
 	logger := log.WithFunc("dhcp.cleanupLoop")
 	ticker := time.NewTicker(leaseCleanupInterval)

@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// fetchMetadata retrieves instance name, zone, project ID, and subnetwork name from GCE metadata.
 func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string, err error) {
 	client := &http.Client{Timeout: metadataTimeout}
 
@@ -39,10 +38,8 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 	if err != nil {
 		return "", "", "", "", fmt.Errorf("zone: %w", err)
 	}
-	// zoneURL format: "projects/PROJECT_NUMBER/zones/ZONE". The PROJECT_NUMBER
-	// segment is the numeric project ID; gcloud commands like
-	// `compute instances describe` reject it and require the project ID
-	// (e.g. "simular-note"). Fetch the ID directly from the metadata server.
+	// zoneURL is "projects/PROJECT_NUMBER/zones/ZONE"; the numeric segment is
+	// not the project ID gcloud accepts, so the ID is fetched separately below.
 	parts := strings.Split(zoneURL, "/")
 	zone = parts[len(parts)-1]
 

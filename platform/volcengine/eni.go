@@ -15,7 +15,6 @@ const (
 	attachPropagationDelay = 4 * time.Second
 )
 
-// networkInterface is the JSON shape of a Volcengine ENI.
 type networkInterface struct {
 	NetworkInterfaceID string `json:"NetworkInterfaceId"`
 	Type               string `json:"Type"`

@@ -42,5 +42,4 @@ func New(ctx context.Context) (*Volcengine, error) {
 	return &Volcengine{}, nil
 }
 
-// Name returns the platform identifier.
 func (v *Volcengine) Name() string { return platform.PlatformVolcengine }

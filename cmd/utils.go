@@ -32,7 +32,6 @@ var (
 	flagManageIPTables bool
 )
 
-// registerCommonFlags binds the flags shared by init and adopt subcommands.
 func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine); auto-detected from instance metadata if omitted")
 	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
@@ -49,8 +48,6 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	_ = cmd.MarkFlagRequired("subnet")
 }
 
-// loadPoolState loads the persisted pool.json from flagStateDir and wraps
-// the not-found error with a hint to run init/adopt first.
 func loadPoolState(ctx context.Context) (*pool.State, error) {
 	state, err := pool.Load(ctx, flagStateDir)
 	if err != nil {
@@ -59,9 +56,8 @@ func loadPoolState(ctx context.Context) (*pool.State, error) {
 	return state, nil
 }
 
-// resolvePlatform sets flagPlatform to an auto-detected value when it is
-// empty, so callers downstream (including dry-run output) see the resolved
-// name without re-running detection.
+// resolvePlatform fills an empty flagPlatform in place so downstream readers
+// (dry-run output included) see the detected name without re-detecting.
 func resolvePlatform(ctx context.Context) error {
 	if flagPlatform != "" {
 		return nil
@@ -74,8 +70,6 @@ func resolvePlatform(ctx context.Context) error {
 	return nil
 }
 
-// splitTrim splits s by sep, trims each element, and drops empties.
-// Returns nil for empty or whitespace-only input.
 func splitTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)
 	for i := range parts {
@@ -88,7 +82,6 @@ func splitTrim(s, sep string) []string {
 	return parts
 }
 
-// parseIPs converts a string slice to IPv4 addresses, skipping invalid entries.
 func parseIPs(strs []string) []net.IP {
 	ips := make([]net.IP, 0, len(strs))
 	for _, s := range strs {

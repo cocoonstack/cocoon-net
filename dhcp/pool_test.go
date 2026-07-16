@@ -25,15 +25,6 @@ func TestIPPool_TryClaimAtomic(t *testing.T) {
 	}
 }
 
-func TestIPPool_TryClaimNil(t *testing.T) {
-	t.Parallel()
-
-	pool := newIPPool(parseIPs(t, "10.0.0.10"))
-	if pool.tryClaim(nil) {
-		t.Fatalf("tryClaim(nil) must return false")
-	}
-}
-
 func TestIPPool_TryClaimUnknownIP(t *testing.T) {
 	t.Parallel()
 

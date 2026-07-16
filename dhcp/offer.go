@@ -6,7 +6,6 @@ import (
 	"time"
 )
 
-// pendingOffer tracks an IP offered to a MAC that hasn't been committed yet.
 type pendingOffer struct {
 	IP     net.IP
 	Expiry time.Time

@@ -9,7 +9,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// ProvisionNetwork provisions Volcengine networking resources.
 func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
 	logger := log.WithFunc("volcengine.ProvisionNetwork")
 

@@ -13,10 +13,8 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Teardown removes this node's alias from nic0 and preserves the shared
-// `cocoon-pods` secondary range (operator-owned; see docs/gke.md). Other
-// alias entries on nic0 are kept; the fixGuestAgentRoute cron is removed
-// best-effort.
+// Only this node's alias is removed; the shared secondary range is
+// operator-owned and preserved (see docs/gke.md).
 func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error {
 	logger := log.WithFunc("gke.Teardown")
 

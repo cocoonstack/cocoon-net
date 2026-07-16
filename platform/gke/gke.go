@@ -37,5 +37,4 @@ type GKE struct{}
 // New constructs a GKE platform handle.
 func New() *GKE { return &GKE{} }
 
-// Name returns the platform identifier.
 func (g *GKE) Name() string { return platform.PlatformGKE }
