@@ -163,6 +163,10 @@ cocoon-net daemon
 
 ### 8. CNI conflist
 
+> This manual block predates the traffic-isolation feature. `cocoon-net init` / `adopt` now
+> writes `portIsolation: true` and `macspoofchk: true` as well — see the current conflist in
+> [Architecture › CNI integration](architecture.md#cni-integration).
+
 ```bash
 cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
 {
@@ -174,6 +178,8 @@ cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
       "bridge": "cni0",
       "isGateway": false,
       "ipMasq": false,
+      "portIsolation": true,
+      "macspoofchk": true,
       "ipam": {}
     }
   ]

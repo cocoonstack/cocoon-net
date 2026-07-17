@@ -5,6 +5,8 @@ nodes. Provisions cloud networking resources and runs an embedded DHCP
 server so VMs obtain VPC-routable IPs directly -- no overlay network, no
 iptables DNAT, no external DHCP server dependency.
 
+**Documentation: [cocoonstack.github.io/cocoon-net](https://cocoonstack.github.io/cocoon-net/)** (source in [`docs/`](docs/)).
+
 ```
 cocoon-net init          cocoon-net daemon
       |                        |
