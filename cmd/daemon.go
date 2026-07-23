@@ -142,6 +142,7 @@ func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 	mux.Handle("/metrics", promhttp.Handler())
 	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: metricsReadHeaderTimeout}
 
+	//nolint:gosec // G118: detaching is the point — this goroutine only runs once ctx is done.
 	go func() {
 		<-ctx.Done()
 		// New ctx: the parent is already canceled, but shutdown must still drain.
