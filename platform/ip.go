@@ -85,6 +85,10 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 		return nil, fmt.Errorf("gateway %s collides with network/broadcast of %s", gateway, cidr)
 	}
 
+	if count < 0 {
+		return nil, fmt.Errorf("pool size %d is negative", count)
+	}
+
 	ips := make([]string, 0, count)
 	for addr := prefix.Masked().Addr().Next(); prefix.Contains(addr) && len(ips) < count; addr = addr.Next() {
 		if addr == gwAddr || addr == bcast {
