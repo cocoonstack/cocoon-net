@@ -24,9 +24,7 @@ type leaseEntry struct {
 	Expiry string `json:"expiry"`
 }
 
-// evictedLease describes a lease entry displaced by add(). Same-MAC
-// rebind leaves the old IP's route + pool slot orphaned; other-MAC
-// conflict is reported for logging.
+// evictedLease is a lease displaced by add(): a same-MAC rebind orphans the old IP's route and pool slot, an other-MAC conflict is log-only.
 type evictedLease struct {
 	MAC string
 	IP  net.IP
