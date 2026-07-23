@@ -54,12 +54,10 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	newIP := ip.To4()
 	var evicted []evictedLease
 
-	// Same MAC, different IP — surface the old IP so the caller can clean it up.
 	if prev, ok := s.leases[key]; ok && !prev.IP.Equal(newIP) {
 		evicted = append(evicted, evictedLease{MAC: key, IP: prev.IP})
 	}
 
-	// Other MAC, same IP — drop the conflicting active lease.
 	for k, l := range s.leases {
 		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
 			delete(s.leases, k)
