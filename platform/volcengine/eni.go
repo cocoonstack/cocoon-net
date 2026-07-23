@@ -26,11 +26,19 @@ type networkInterface struct {
 	} `json:"PrivateIpSets"`
 }
 
-func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, count int) ([]string, error) {
-	logger := log.WithFunc("volcengine.createAndAttachENIs")
-	eniIDs := make([]string, 0, count)
+func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, count int) ([]networkInterface, error) {
+	logger := log.WithFunc("volcengine.ensureENIs")
 
-	for i := 1; i <= count; i++ {
+	existing, err := listENIs(ctx, instanceID)
+	if err != nil {
+		return nil, fmt.Errorf("list existing ENIs: %w", err)
+	}
+	result := reusableENIs(existing, count)
+	if len(result) > 0 {
+		logger.Infof(ctx, "reusing %d existing ENI(s)", len(result))
+	}
+
+	for i := len(result) + 1; i <= count; i++ {
 		out, err := veRun(
 			ctx, "vpc", "CreateNetworkInterface",
 			"--SubnetId", subnetID,
@@ -38,7 +46,7 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			"--NetworkInterfaceName", fmt.Sprintf("%s-eni-%d", prefix, i),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("create ENI %d: %w", i, err)
+			return result, fmt.Errorf("create ENI %d: %w", i, err)
 		}
 		var resp struct {
 			Result struct {
@@ -46,12 +54,12 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 			} `json:"Result"`
 		}
 		if unmarshalErr := json.Unmarshal(out, &resp); unmarshalErr != nil {
-			return nil, fmt.Errorf("parse create ENI %d response: %w", i, unmarshalErr)
+			return result, fmt.Errorf("parse create ENI %d response: %w", i, unmarshalErr)
 		}
 		eniID := resp.Result.NetworkInterfaceID
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
-			return eniIDs, err
+			return result, err
 		}
 
 		_, attachErr := veRun(
@@ -72,13 +80,26 @@ func createAndAttachENIs(ctx context.Context, subnetID, sgID, instanceID, prefix
 		}
 
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
-			return eniIDs, err
+			return result, err
 		}
 
-		eniIDs = append(eniIDs, eniID)
+		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		logger.Infof(ctx, "created and attached ENI %s (%d/%d)", eniID, i, count)
 	}
-	return eniIDs, nil
+	return result, nil
+}
+
+func reusableENIs(enis []networkInterface, count int) []networkInterface {
+	var reusable []networkInterface
+	for _, e := range enis {
+		if e.Type != eniTypePrimary {
+			reusable = append(reusable, e)
+		}
+	}
+	if len(reusable) > count {
+		reusable = reusable[:count]
+	}
+	return reusable
 }
 
 func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
