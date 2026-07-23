@@ -13,6 +13,7 @@ import (
 const (
 	createPropagationDelay = 2 * time.Second
 	attachPropagationDelay = 4 * time.Second
+	orphanDeleteTimeout    = 15 * time.Second
 )
 
 type networkInterface struct {
@@ -59,9 +60,11 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		eniID := resp.Result.NetworkInterfaceID
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
-			if _, delErr := veRun(context.WithoutCancel(ctx), "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
+			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
+			if _, delErr := veRun(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
 				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
 			}
+			cancel()
 			return result, err
 		}
 
