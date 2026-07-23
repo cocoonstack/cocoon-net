@@ -1,6 +1,7 @@
 package volcengine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
@@ -12,10 +13,7 @@ import (
 func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
 	logger := log.WithFunc("volcengine.ProvisionNetwork")
 
-	primaryNIC := cfg.PrimaryNIC
-	if primaryNIC == "" {
-		primaryNIC = platform.DefaultNIC(v.Name())
-	}
+	primaryNIC := cmp.Or(cfg.PrimaryNIC, platform.DefaultNIC(v.Name()))
 
 	vpcID, err := fetchMeta(ctx, "/vpc-id")
 	if err != nil {

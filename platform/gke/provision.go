@@ -1,6 +1,7 @@
 package gke
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
@@ -13,10 +14,7 @@ import (
 func (g *GKE) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
 	logger := log.WithFunc("gke.ProvisionNetwork")
 
-	primaryNIC := cfg.PrimaryNIC
-	if primaryNIC == "" {
-		primaryNIC = platform.DefaultNIC(g.Name())
-	}
+	primaryNIC := cmp.Or(cfg.PrimaryNIC, platform.DefaultNIC(g.Name()))
 
 	instance, zone, project, subnet, err := fetchMetadata(ctx)
 	if err != nil {
