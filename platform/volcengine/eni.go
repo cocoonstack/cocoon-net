@@ -59,6 +59,9 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		eniID := resp.Result.NetworkInterfaceID
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
+			if _, delErr := veRun(context.WithoutCancel(ctx), "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
+				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
+			}
 			return result, err
 		}
 
