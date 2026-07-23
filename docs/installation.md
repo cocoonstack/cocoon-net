@@ -4,7 +4,8 @@
 
 ```bash
 VER=$(curl -sI https://github.com/cocoonstack/cocoon-net/releases/latest | awk -F'/v' 'tolower($0) ~ /^location:/ {print $NF}' | tr -d '\r')
-curl -sL "https://github.com/cocoonstack/cocoon-net/releases/download/v${VER}/cocoon-net_${VER}_Linux_x86_64.tar.gz" | tar xz
+ARCH=$([ "$(uname -m)" = "aarch64" ] && echo arm64 || echo x86_64)
+curl -sL "https://github.com/cocoonstack/cocoon-net/releases/download/v${VER}/cocoon-net_${VER}_Linux_${ARCH}.tar.gz" | tar xz
 sudo install -m 0755 cocoon-net /usr/local/bin/
 ```
 
