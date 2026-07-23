@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
@@ -45,8 +44,6 @@ type Server struct {
 	offers *pendingOffers
 
 	linkIndex int // cached kernel interface index for route operations
-	mu        sync.Mutex
-	stopped   bool
 }
 
 // New creates a DHCP server. IPs are the allocatable pool (excluding gateway).
@@ -97,9 +94,6 @@ func (s *Server) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		s.mu.Lock()
-		s.stopped = true
-		s.mu.Unlock()
 		_ = srv.Close()
 		if err := s.leases.save(); err != nil {
 			logger.Error(ctx, err, "persist leases on shutdown")
@@ -107,12 +101,6 @@ func (s *Server) Run(ctx context.Context) error {
 		logger.Info(ctx, "DHCP server stopped")
 		return nil
 	case err := <-errCh:
-		s.mu.Lock()
-		stopped := s.stopped
-		s.mu.Unlock()
-		if stopped {
-			return nil
-		}
 		return fmt.Errorf("DHCP server: %w", err)
 	}
 }
