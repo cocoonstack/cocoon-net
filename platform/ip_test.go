@@ -136,6 +136,14 @@ func TestSubnetIPs_CountZero(t *testing.T) {
 	}
 }
 
+func TestSubnetIPs_NegativeCountIsError(t *testing.T) {
+	t.Parallel()
+
+	if _, err := SubnetIPs("10.0.0.0/24", "10.0.0.1", -1); err == nil {
+		t.Fatal("expected error for negative count")
+	}
+}
+
 func TestFirstHostIP(t *testing.T) {
 	t.Parallel()
 

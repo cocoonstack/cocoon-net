@@ -1,6 +1,7 @@
 package volcengine
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
@@ -12,10 +13,7 @@ import (
 func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config) (*platform.NetworkResult, error) {
 	logger := log.WithFunc("volcengine.ProvisionNetwork")
 
-	primaryNIC := cfg.PrimaryNIC
-	if primaryNIC == "" {
-		primaryNIC = platform.DefaultNIC(v.Name())
-	}
+	primaryNIC := cmp.Or(cfg.PrimaryNIC, platform.DefaultNIC(v.Name()))
 
 	vpcID, err := fetchMeta(ctx, "/vpc-id")
 	if err != nil {
@@ -39,24 +37,34 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "instance id: %s", instanceID)
 
-	eniIDs, err := createAndAttachENIs(ctx, subnetID, sgID, instanceID, cfg.NodeName, enisPerNode)
+	enis, err := ensureENIs(ctx, subnetID, sgID, instanceID, cfg.NodeName, enisPerNode)
 	if err != nil {
-		return nil, fmt.Errorf("create/attach ENIs: %w", err)
+		return nil, fmt.Errorf("ensure ENIs: %w", err)
 	}
-	logger.Infof(ctx, "attached %d ENIs", len(eniIDs))
+	logger.Infof(ctx, "%d ENIs ready", len(enis))
 
 	var allIPs []string
-	for _, eniID := range eniIDs {
-		ips, assignErr := assignSecondaryIPs(ctx, eniID, ipsPerENI)
-		if assignErr != nil {
-			// One ENI's failure is tolerable; the len(allIPs)==0 guard below aborts only if every ENI failed.
-			logger.Warnf(ctx, "assign secondary IPs to %s: %v", eniID, assignErr)
-			continue
+	for _, eni := range enis {
+		var existing []string
+		for _, pip := range eni.PrivateIPSets.PrivateIPSet {
+			if !pip.Primary {
+				existing = append(existing, pip.PrivateIPAddress)
+			}
 		}
-		allIPs = append(allIPs, ips...)
+		allIPs = append(allIPs, existing...)
+
+		if shortfall := ipsPerENI - len(existing); shortfall > 0 {
+			ips, assignErr := assignSecondaryIPs(ctx, eni.NetworkInterfaceID, shortfall)
+			if assignErr != nil {
+				// One ENI's failure is tolerable; the len(allIPs)==0 guard below aborts only if every ENI failed.
+				logger.Warnf(ctx, "assign secondary IPs to %s: %v", eni.NetworkInterfaceID, assignErr)
+				continue
+			}
+			allIPs = append(allIPs, ips...)
+		}
 	}
 	if len(allIPs) == 0 {
-		return nil, fmt.Errorf("no secondary IPs assigned across %d ENIs", len(eniIDs))
+		return nil, fmt.Errorf("no secondary IPs assigned across %d ENIs", len(enis))
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 

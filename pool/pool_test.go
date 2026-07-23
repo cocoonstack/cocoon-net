@@ -74,7 +74,7 @@ func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 	}
 
 	tmp := filepath.Join(dir, poolFileName+".tmp")
-	if err := os.WriteFile(tmp, []byte("{not json"), 0o644); err != nil {
+	if err := os.WriteFile(tmp, []byte("{not json"), filePerm); err != nil {
 		t.Fatalf("write fake tmp: %v", err)
 	}
 
