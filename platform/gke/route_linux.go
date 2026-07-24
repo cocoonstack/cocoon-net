@@ -11,9 +11,7 @@ import (
 )
 
 // delLocalAliasRoute removes the `local <cidr> dev <nic> table local` entry
-// that the GCE guest agent installs for alias ranges. Equivalent to:
-//
-//	ip route del local <cidr> dev <nic> table local
+// that the GCE guest agent installs for alias ranges.
 func delLocalAliasRoute(nic, cidr string) error {
 	link, err := netlink.LinkByName(nic)
 	if err != nil {

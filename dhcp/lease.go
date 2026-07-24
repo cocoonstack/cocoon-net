@@ -151,10 +151,7 @@ func (s *leaseStore) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal leases: %w", err)
 	}
-	// Atomic write via a UNIQUE temp file per call, then rename. save() holds
-	// only RLock, so concurrent savers (request/release/cleanup goroutines) must
-	// not share a fixed temp path or their O_TRUNC writes interleave and rename
-	// publishes a corrupt leases.json.
+	// Unique temp file per call: save() holds only RLock, so savers sharing a fixed temp path would interleave O_TRUNC writes and rename a corrupt leases.json.
 	tmp, err := os.CreateTemp(filepath.Dir(s.filePath), "leases-*.json")
 	if err != nil {
 		return fmt.Errorf("create leases tmp: %w", err)

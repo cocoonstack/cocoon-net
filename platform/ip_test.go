@@ -8,7 +8,6 @@ import (
 func TestSubnetIPs_Slash24(t *testing.T) {
 	t.Parallel()
 
-	// /24 has 256 addresses, 254 hosts, minus the gateway = 253 max.
 	got, err := SubnetIPs("10.0.0.0/24", "10.0.0.1", 8)
 	if err != nil {
 		t.Fatalf("SubnetIPs: %v", err)
@@ -25,8 +24,6 @@ func TestSubnetIPs_Slash24(t *testing.T) {
 func TestSubnetIPs_Slash24SkipsBroadcast(t *testing.T) {
 	t.Parallel()
 
-	// Ask for more than the subnet can deliver; verify the result
-	// excludes both the gateway and the broadcast (10.0.0.255).
 	got, err := SubnetIPs("10.0.0.0/24", "10.0.0.1", 300)
 	if err != nil {
 		t.Fatalf("SubnetIPs: %v", err)
@@ -62,7 +59,6 @@ func TestSubnetIPs_Slash28(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}
-	// Explicit broadcast check.
 	if slices.Contains(got, "192.168.10.15") {
 		t.Errorf("/28 broadcast 192.168.10.15 must be excluded")
 	}

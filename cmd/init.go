@@ -54,9 +54,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Persist a seed state before provisioning any cloud resource, so a
-	// mid-provision failure still leaves teardown something to act on
-	// instead of orphaning resources with no recorded state.
+	// Seed state before provisioning so a mid-provision failure still leaves teardown something to act on.
 	state := &pool.State{
 		Platform:           flagPlatform,
 		NodeName:           cfg.NodeName,

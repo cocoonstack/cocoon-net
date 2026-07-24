@@ -126,11 +126,8 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 	return nil
 }
 
-// resolveDropTargets resolves the CIDRs VM egress is blocked from reaching: the
-// subnet itself when dropInternal is set (VM-to-VM isolation, reusing the range
-// cocoon already knows), plus operator-supplied dropCIDRs. CIDRs are
-// canonicalized to match iptables' -S output (dedup + prune); IPv6 is rejected
-// because the rules go through the IPv4 iptables binary.
+// resolveDropTargets canonicalizes CIDRs to iptables -S form so reconcile can
+// match them; IPv6 is rejected because the rules go through the IPv4 binary.
 func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string) ([]string, error) {
 	var raw []string
 	if dropInternal {

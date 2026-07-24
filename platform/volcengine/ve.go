@@ -7,14 +7,12 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// veRun shells out to the `ve` CLI. Every invocation is a tech-debt hotspot
-// documented at package level — see volcengine.go.
+// veRun is the single `ve` CLI call site; the subprocess tech debt is documented at package level.
 func veRun(ctx context.Context, args ...string) ([]byte, error) {
 	return platform.RunSubprocess(ctx, "ve", args...)
 }
 
-// sleepCtx waits for d or ctx cancellation, so a SIGTERM cuts the ENI
-// propagation waits short instead of blocking shutdown for seconds each.
+// sleepCtx returns early on cancellation so shutdown is not blocked by the ENI propagation waits.
 func sleepCtx(ctx context.Context, d time.Duration) error {
 	timer := time.NewTimer(d)
 	defer timer.Stop()

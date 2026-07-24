@@ -61,10 +61,7 @@ func run() int {
 	return 0
 }
 
-// newPlatform returns a CloudPlatform by name. Callers that need to handle
-// an empty name should call resolvePlatform first; newPlatform itself does
-// not auto-detect so teardown/status (which always pass state.Platform) stay
-// offline-safe.
+// newPlatform never auto-detects, keeping teardown/status offline-safe; empty names go through resolvePlatform first.
 func newPlatform(ctx context.Context, name string) (platform.CloudPlatform, error) {
 	switch name {
 	case platform.PlatformGKE:

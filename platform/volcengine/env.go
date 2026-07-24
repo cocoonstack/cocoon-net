@@ -12,10 +12,7 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// loadEnv resolves Volcengine credentials from env vars or
-// ~/.volcengine/config.json and exports them so the `ve` child binary
-// inherits them. Missing home dir or config file is not an error —
-// `ve` has its own fallbacks.
+// loadEnv exports credentials to the process env for the `ve` child; a missing config is not an error, `ve` has its own fallbacks.
 func loadEnv(ctx context.Context) error {
 	logger := log.WithFunc("volcengine.loadEnv")
 

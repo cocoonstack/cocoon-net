@@ -42,10 +42,8 @@ func FirstHostIP(cidr string) (string, error) {
 	return first.String(), nil
 }
 
-// SubnetIPs returns up to count host IPs from the subnet, skipping
-// the gateway and the broadcast address. The gateway must parse as a
-// valid IPv4 — an empty or malformed value is an error, not a silent
-// "no gateway, every host is fair game".
+// SubnetIPs returns up to count host IPs from the subnet, skipping the gateway
+// and the broadcast address; an empty or malformed gateway is an error.
 func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {

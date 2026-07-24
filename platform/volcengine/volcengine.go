@@ -29,9 +29,7 @@ const (
 
 var _ platform.CloudPlatform = (*Volcengine)(nil)
 
-// Volcengine implements CloudPlatform. The struct is empty: credentials
-// are loaded once at New() and exported as env vars for the `ve` child
-// binary, which is the only consumer.
+// Volcengine implements CloudPlatform; the struct is empty because credentials live in the env of the `ve` child binary.
 type Volcengine struct{}
 
 // New loads credentials from env or ~/.volcengine/config.json exactly once.

@@ -11,9 +11,7 @@ type pendingOffer struct {
 	Expiry time.Time
 }
 
-// pendingOffers manages IPs that have been OFFERed but not yet ACKed.
-// If the client never sends REQUEST, the offer expires and the IP
-// is returned to the pool by the cleanup loop.
+// pendingOffers holds OFFERed-but-unACKed IPs; an offer the client never REQUESTs expires and the cleanup loop returns its IP to the pool.
 type pendingOffers struct {
 	mu      sync.RWMutex
 	offers  map[string]*pendingOffer // keyed by MAC string
@@ -27,9 +25,7 @@ func newPendingOffers(timeout time.Duration) *pendingOffers {
 	}
 }
 
-// add records a pending offer for mac. If this MAC already has a pending
-// offer for a different IP, the old IP is returned so the caller can
-// release it back to the pool.
+// add returns the MAC's previously offered IP when it differs, for the caller to release back to the pool.
 func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -45,9 +41,7 @@ func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) net.IP {
 	return oldIP
 }
 
-// remove deletes the pending offer for mac and returns the offered IP
-// so the caller can release it back to the pool. Returns nil if no
-// pending offer exists.
+// remove returns the dropped offer's IP, or nil, for the caller to release back to the pool.
 func (p *pendingOffers) remove(mac net.HardwareAddr) net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -60,9 +54,7 @@ func (p *pendingOffers) remove(mac net.HardwareAddr) net.IP {
 	return old.IP
 }
 
-// ipForMAC returns the offered IP if still valid. If the offer has expired,
-// it is removed and the IP is returned as the second value so the caller
-// can release it back to the pool.
+// ipForMAC drops an expired offer and reports its IP as expired, for the caller to release back to the pool.
 func (p *pendingOffers) ipForMAC(mac net.HardwareAddr) (active, expired net.IP) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

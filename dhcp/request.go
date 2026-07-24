@@ -49,9 +49,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// Install the /32 route before committing lease state — without it
-	// the client would lease an unreachable IP. RouteReplace is
-	// idempotent so client re-REQUESTs are safe.
+	// The /32 route lands before lease state, else the client leases an unreachable IP; RouteReplace is idempotent so re-REQUESTs are safe.
 	if err := addRouteFn(reqIP, s.linkIndex); err != nil {
 		if !alreadyHeld {
 			s.pool.release(reqIP)

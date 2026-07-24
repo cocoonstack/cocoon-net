@@ -54,7 +54,6 @@ func TestState_SaveLoadRoundtrip(t *testing.T) {
 	}
 }
 
-// A bogus pool.json.tmp must not interfere with Load or a subsequent Save.
 func TestState_SaveAtomicTmpIgnored(t *testing.T) {
 	t.Parallel()
 

@@ -102,10 +102,7 @@ func reusableENIs(enis []networkInterface, count int) []networkInterface {
 			reusable = append(reusable, e)
 		}
 	}
-	if len(reusable) > count {
-		reusable = reusable[:count]
-	}
-	return reusable
+	return reusable[:min(len(reusable), count)]
 }
 
 func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {

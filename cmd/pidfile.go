@@ -15,8 +15,6 @@ const (
 	pidDirPerm  = 0o755
 )
 
-// acquirePIDFile writes the current PID to /run/cocoon-net.pid and fails
-// if another instance is already running.
 func acquirePIDFile() error {
 	if err := checkExistingPID(); err != nil {
 		return err
@@ -27,9 +25,7 @@ func acquirePIDFile() error {
 	return os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), pidFilePerm)
 }
 
-// checkExistingPID returns nil when it's safe to (re)write the PID file:
-// no file, corrupt file, or stale file (process dead). It returns an
-// error only if another live cocoon-net daemon still owns the PID.
+// A missing, corrupt, or stale (process dead) PID file is safe to overwrite.
 func checkExistingPID() error {
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
