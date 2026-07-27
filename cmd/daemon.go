@@ -145,8 +145,8 @@ func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 	//nolint:gosec // G118: detaching is the point — this goroutine only runs once ctx is done.
 	go func() {
 		<-ctx.Done()
-		// New ctx: the parent is already canceled, but shutdown must still drain.
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), metricsShutdownTimeout)
+		// WithoutCancel: the parent is already canceled, but shutdown must still drain.
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metricsShutdownTimeout)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
 	}()
