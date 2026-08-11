@@ -18,6 +18,26 @@ VPC-routable IP directly from this server.
   reloaded at daemon startup so a restart doesn't strand or double-assign
   leases.
 
+### Lease file format
+
+The file is a JSON array, rewritten atomically (temp file + rename, `0644`),
+so a reader either sees the previous complete file or the new one:
+
+```json
+[
+  {
+    "mac": "aa:bb:cc:dd:ee:01",
+    "ip": "10.148.0.37",
+    "expiry": "2026-08-11T09:30:00Z"
+  }
+]
+```
+
+This is a consumed contract, not an internal detail:
+[vk-cocoon](https://github.com/cocoonstack/vk-cocoon) resolves a freshly
+cloned VM's IP by looking its MAC up here. Match on `mac` — the array order
+is map-iteration order and changes between writes.
+
 ## Dynamic host routes
 
 On every lease event the daemon updates the host's routing table so the new
