@@ -9,7 +9,7 @@ DHCP and keeps host routes in sync with leases.
 cocoon-net init          cocoon-net daemon
       |                        |
       v                        v
-Cloud provisioning       Node setup (sysctl, bridge, iptables, CNI conflist)
+Cloud provisioning       Node setup (NICs up, bridge, sysctl, iptables, CNI conflist)
 (alias IPs / ENIs)             |
       |                        v
       v                  DHCP server on cni0
@@ -33,7 +33,7 @@ pool.json  <----------        |
 | `cmd/` | Cobra commands: `init`, `adopt`, `daemon`, `status`, `teardown` |
 | `platform/` | `CloudPlatform` interface with per-cloud implementations (`platform/gke`, `platform/volcengine`); auto-detection via instance metadata |
 | `pool/` | `pool.State` -- the allocation pool persisted to `pool.json` (atomic tmp+rename write) |
-| `node/` | `cni0` bridge, sysctl, iptables FORWARD + NAT, and the CNI conflist writer |
+| `node/` | Secondary NIC bring-up, `cni0` bridge, sysctl, iptables FORWARD + NAT, and the CNI conflist writer |
 | `dhcp/` | The embedded DHCPv4 server: lease store, IP pool, dynamic route add/remove -- see [DHCP server](dhcp.md) |
 
 `platform.CloudPlatform` is the seam between cloud-specific provisioning and

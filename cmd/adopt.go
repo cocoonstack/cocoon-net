@@ -17,10 +17,10 @@ func newAdoptCmd() *cobra.Command {
 		Use:   "adopt",
 		Short: "Adopt an existing manually-provisioned node into cocoon-net state",
 		Long: `Adopt configures a node whose cloud networking (alias IP range or
-secondary ENIs) already exists. cocoon-net will configure the bridge,
-CNI conflist, sysctl, and write the pool state file while leaving
-the cloud-side allocation untouched. Run 'cocoon-net daemon' after
-adopt to start the embedded DHCP server.`,
+secondary ENIs) already exists. cocoon-net will bring the secondary NICs
+up, configure the bridge, CNI conflist, sysctl, and write the pool state
+file while leaving the cloud-side allocation untouched. Run 'cocoon-net
+daemon' after adopt to start the embedded DHCP server.`,
 		RunE: runAdopt,
 	}
 
