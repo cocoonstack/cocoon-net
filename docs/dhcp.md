@@ -13,6 +13,10 @@ VPC-routable IP directly from this server.
 - Default lease time is 24 hours; expired leases are swept every minute.
 - A DHCPOFFER reserves an IP for 60 seconds; if no matching DHCPREQUEST
   arrives in that window, the IP is returned to the free pool.
+- Local lifecycle managers can explicitly reclaim a destroyed VM's lease with
+  `DELETE /v1/leases/{mac}` over the root-only `--control-socket`. This avoids
+  holding addresses until expiry when a force-stopped guest cannot send
+  DHCPRELEASE.
 - Leases are persisted to the `--lease-file` (default
   `/var/lib/cocoon/net/leases.json`) on every allocation/release, and
   reloaded at daemon startup so a restart doesn't strand or double-assign

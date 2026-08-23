@@ -23,8 +23,9 @@ import (
 )
 
 const (
-	defaultLeaseFile   = "/var/lib/cocoon/net/leases.json"
-	defaultMetricsAddr = ":9092"
+	defaultLeaseFile     = "/var/lib/cocoon/net/leases.json"
+	defaultControlSocket = "/run/cocoon-net/control.sock"
+	defaultMetricsAddr   = ":9092"
 
 	metricsReadHeaderTimeout = 5 * time.Second
 	metricsShutdownTimeout   = 5 * time.Second
@@ -34,9 +35,10 @@ var (
 	// fallbackDNSServers covers pre-migration state files without DNSServers.
 	fallbackDNSServers = []string{"8.8.8.8", "1.1.1.1"}
 
-	flagLeaseFile    string
-	flagSkipIPTables bool
-	flagMetricsAddr  string
+	flagLeaseFile     string
+	flagControlSocket string
+	flagSkipIPTables  bool
+	flagMetricsAddr   string
 )
 
 func newDaemonCmd() *cobra.Command {
@@ -52,6 +54,7 @@ they expire.`,
 	}
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")
 	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "path to lease persistence file")
+	cmd.Flags().StringVar(&flagControlSocket, "control-socket", cmp.Or(os.Getenv("COCOON_NET_CONTROL_SOCKET"), defaultControlSocket), "root-only Unix socket for local lease lifecycle operations (empty to disable)")
 	cmd.Flags().BoolVar(&flagSkipIPTables, "skip-iptables", false, "skip iptables setup (for pre-configured nodes)")
 	cmd.Flags().StringVar(&flagMetricsAddr, "metrics-addr", cmp.Or(os.Getenv("COCOON_NET_METRICS_ADDR"), defaultMetricsAddr), "prometheus metrics listen address (empty to disable)")
 	return cmd
@@ -114,11 +117,12 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	dnsIPs := parseIPs(dnsList)
 
 	srv := dhcp.New(dhcp.Config{
-		Interface:  node.BridgeName,
-		Gateway:    gateway,
-		SubnetMask: ipNet.Mask,
-		DNSServers: dnsIPs,
-		LeaseFile:  flagLeaseFile,
+		Interface:     node.BridgeName,
+		Gateway:       gateway,
+		SubnetMask:    ipNet.Mask,
+		DNSServers:    dnsIPs,
+		LeaseFile:     flagLeaseFile,
+		ControlSocket: flagControlSocket,
 	}, poolIPs)
 
 	if flagMetricsAddr != "" {

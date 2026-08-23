@@ -31,6 +31,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			s.lifecycleMu.Lock()
 			for _, ip := range s.offers.expireOld() {
 				s.pool.release(ip)
 				logger.Infof(ctx, "reclaimed abandoned offer %s", ip)
@@ -38,6 +39,14 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 
 			// delRoute before release: a concurrent DISCOVER could otherwise claim the freed IP and our late delRoute would black-hole it.
 			expired := s.leases.expireOld()
+			if len(expired) > 0 {
+				if err := s.leases.save(); err != nil {
+					s.leases.restoreAll(expired)
+					logger.Error(ctx, err, "persist leases before cleanup")
+					s.lifecycleMu.Unlock()
+					continue
+				}
+			}
 			for _, l := range expired {
 				if err := delRouteFn(l.IP, s.linkIndex); err != nil {
 					logger.Errorf(ctx, err, "del expired route %s", l.IP)
@@ -45,11 +54,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				s.pool.release(l.IP)
 				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
 			}
-			if len(expired) > 0 {
-				if err := s.leases.save(); err != nil {
-					logger.Error(ctx, err, "persist leases after cleanup")
-				}
-			}
+			s.lifecycleMu.Unlock()
 		}
 	}
 }

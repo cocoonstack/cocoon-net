@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
@@ -33,6 +34,8 @@ type Config struct {
 	DNSServers []net.IP
 	LeaseTime  time.Duration
 	LeaseFile  string
+	// ControlSocket exposes the root-only local lease reclamation API. Empty disables it.
+	ControlSocket string
 }
 
 // Server is an embedded DHCPv4 server that allocates IPs from a fixed pool,
@@ -43,7 +46,8 @@ type Server struct {
 	leases *leaseStore
 	offers *pendingOffers
 
-	linkIndex int // cached kernel interface index for route operations
+	lifecycleMu sync.Mutex // serializes multi-structure lease, route, and pool transitions
+	linkIndex   int        // cached kernel interface index for route operations
 }
 
 // New creates a DHCP server. IPs are the allocatable pool (excluding gateway).
@@ -75,6 +79,14 @@ func (s *Server) Run(ctx context.Context) error {
 		s.restoreLeases(ctx)
 	}
 
+	control, err := newControlServer(s.conf.ControlSocket, s)
+	if err != nil {
+		return fmt.Errorf("start control server: %w", err)
+	}
+	if control != nil {
+		defer control.close()
+	}
+
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpv4.ServerPort}
 	srv, err := server4.NewServer(s.conf.Interface, laddr,
 		func(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
@@ -91,6 +103,10 @@ func (s *Server) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve() }()
+	var controlErrCh <-chan error
+	if control != nil {
+		controlErrCh = control.serve()
+	}
 
 	select {
 	case <-ctx.Done():
@@ -102,6 +118,9 @@ func (s *Server) Run(ctx context.Context) error {
 		return nil
 	case err := <-errCh:
 		return fmt.Errorf("DHCP server: %w", err)
+	case err := <-controlErrCh:
+		_ = srv.Close()
+		return fmt.Errorf("control server: %w", err)
 	}
 }
 

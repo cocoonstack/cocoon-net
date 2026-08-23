@@ -12,6 +12,8 @@ import (
 
 func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
 	logger := log.WithFunc("dhcp.handleRequest")
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 
 	reqIP := msg.RequestedIPAddress()
 	if reqIP == nil || reqIP.IsUnspecified() {
