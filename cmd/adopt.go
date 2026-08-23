@@ -59,10 +59,6 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		primaryNIC = platform.DefaultNIC(platformName)
 	}
 	secondaryNICs := platform.DefaultSecondaryNICs(platformName)
-	networkPlan := "bridge cni0, sysctl"
-	if len(secondaryNICs) > 0 {
-		networkPlan = fmt.Sprintf("secondary NICs %s up, bridge cni0, sysctl", strings.Join(secondaryNICs, ","))
-	}
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")
@@ -86,6 +82,10 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		fmt.Println("would write:")
 		fmt.Println("  /etc/cni/net.d/30-cocoon-dhcp.conflist")
 		fmt.Printf("  %s/pool.json\n", flagStateDir)
+		networkPlan := "bridge cni0, sysctl"
+		if len(secondaryNICs) > 0 {
+			networkPlan = "secondary NICs up, bridge cni0, sysctl"
+		}
 		iptablesPlan := "skipped (preserve existing rules)"
 		if flagManageIPTables {
 			iptablesPlan = "(re)applied"
