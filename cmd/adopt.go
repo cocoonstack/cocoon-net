@@ -59,6 +59,10 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		primaryNIC = platform.DefaultNIC(platformName)
 	}
 	secondaryNICs := platform.DefaultSecondaryNICs(platformName)
+	networkPlan := "bridge cni0, sysctl"
+	if len(secondaryNICs) > 0 {
+		networkPlan = fmt.Sprintf("secondary NICs %s up, bridge cni0, sysctl", strings.Join(secondaryNICs, ","))
+	}
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")
@@ -67,6 +71,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  subnet:          %s\n", flagSubnet)
 		fmt.Printf("  gateway:         %s\n", gateway)
 		fmt.Printf("  primary-nic:     %s\n", primaryNIC)
+		fmt.Printf("  secondary-nics:  %s\n", strings.Join(secondaryNICs, ","))
 		if len(ips) > 0 {
 			fmt.Printf("  pool-size:       %d (first=%s, last=%s)\n", len(ips), ips[0], ips[len(ips)-1])
 		} else {
@@ -85,7 +90,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		if flagManageIPTables {
 			iptablesPlan = "(re)applied"
 		}
-		fmt.Printf("would (re)apply: bridge cni0, sysctl; iptables %s\n", iptablesPlan)
+		fmt.Printf("would (re)apply: %s; iptables %s\n", networkPlan, iptablesPlan)
 		fmt.Println("routes and DHCP managed by 'cocoon-net daemon'")
 		fmt.Println("would NOT touch: cloud alias IP range / ENIs (preserved as-is)")
 		return nil
