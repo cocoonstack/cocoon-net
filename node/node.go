@@ -52,6 +52,9 @@ func Setup(ctx context.Context, cfg *Config) error {
 	if len(cfg.SecondaryNICs) > 0 {
 		logger.Infof(ctx, "secondary NICs: %v", cfg.SecondaryNICs)
 	}
+	if err := setupSecondaryNICs(cfg.SecondaryNICs); err != nil {
+		return fmt.Errorf("secondary NICs: %w", err)
+	}
 
 	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
 		return fmt.Errorf("bridge: %w", err)
