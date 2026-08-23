@@ -103,7 +103,7 @@ sudo cocoon-net adopt \
   --subnet 172.20.100.0/24
 ```
 
-This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+This brings the secondary NICs up, configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
 After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. Cloud-side teardown (detaching/deleting ENIs) must still be done manually.
 

@@ -44,9 +44,10 @@ func newDaemonCmd() *cobra.Command {
 		Use:   "daemon",
 		Short: "Run as a long-lived service: setup node networking and serve DHCP",
 		Long: `Daemon mode loads the IP pool from the state file, configures host
-networking (brings configured secondary NICs up, then applies sysctl, bridge,
-and iptables), and starts an embedded DHCP server on cni0. Host routes (/32)
-are added dynamically when leases are granted and removed when they expire.`,
+networking (brings configured secondary NICs up, then applies the bridge,
+sysctl, and iptables), and starts an embedded DHCP server on cni0. Host
+routes (/32) are added dynamically when leases are granted and removed when
+they expire.`,
 		RunE: runDaemon,
 	}
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")

@@ -9,7 +9,7 @@ network, no iptables DNAT, no external DHCP server dependency.
 cocoon-net init          cocoon-net daemon
       |                        |
       v                        v
-Cloud provisioning       Node setup (sysctl, bridge, iptables, CNI conflist)
+Cloud provisioning       Node setup (NICs up, bridge, sysctl, iptables, CNI conflist)
 (alias IPs / ENIs)             |
       |                        v
       v                  DHCP server on cni0
