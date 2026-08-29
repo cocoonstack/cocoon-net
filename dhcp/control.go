@@ -11,12 +11,13 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/cocoonstack/cocoon-common/httpx"
 )
 
 const (
-	leasePathPrefix          = "/v1/leases/"
-	controlReadHeaderTimeout = 5 * time.Second
-	controlShutdownTimeout   = 5 * time.Second
+	leasePathPrefix        = "/v1/leases/"
+	controlShutdownTimeout = 5 * time.Second
 )
 
 type controlServer struct {
@@ -25,7 +26,7 @@ type controlServer struct {
 	socketPath string
 }
 
-func newControlServer(socketPath string, leases *Server) (*controlServer, error) {
+func newControlServer(socketPath string, srv *Server) (*controlServer, error) {
 	if socketPath == "" {
 		return nil, nil
 	}
@@ -54,34 +55,24 @@ func newControlServer(socketPath string, leases *Server) (*controlServer, error)
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(leasePathPrefix, leases.handleLeaseControl)
+	mux.HandleFunc(leasePathPrefix, srv.handleLeaseControl)
 	return &controlServer{
-		server: &http.Server{
-			Handler:           mux,
-			ReadHeaderTimeout: controlReadHeaderTimeout,
-		},
+		server:     httpx.NewServer("", mux),
 		listener:   listener,
 		socketPath: socketPath,
 	}, nil
 }
 
-func (s *controlServer) serve() <-chan error {
+func (s *controlServer) serve(ctx context.Context) <-chan error {
 	errCh := make(chan error, 1)
 	go func() {
-		err := s.server.Serve(s.listener)
-		if errors.Is(err, http.ErrServerClosed) {
-			err = nil
-		}
-		errCh <- err
+		defer os.Remove(s.socketPath) //nolint:errcheck // stale sockets are validated and replaced on the next start
+		errCh <- httpx.Run(ctx, controlShutdownTimeout, httpx.ServerSpec{
+			Server: s.server,
+			Start:  func() error { return s.server.Serve(s.listener) },
+		})
 	}()
 	return errCh
-}
-
-func (s *controlServer) close() {
-	ctx, cancel := context.WithTimeout(context.Background(), controlShutdownTimeout)
-	defer cancel()
-	_ = s.server.Shutdown(ctx)
-	_ = os.Remove(s.socketPath)
 }
 
 func (s *Server) handleLeaseControl(w http.ResponseWriter, r *http.Request) {
@@ -91,7 +82,7 @@ func (s *Server) handleLeaseControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rawMAC, err := url.PathUnescape(strings.TrimPrefix(r.URL.Path, leasePathPrefix))
-	if err != nil || rawMAC == "" || strings.Contains(rawMAC, "/") {
+	if err != nil {
 		http.Error(w, "invalid MAC address", http.StatusBadRequest)
 		return
 	}

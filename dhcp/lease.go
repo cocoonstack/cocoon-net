@@ -83,8 +83,8 @@ func (s *leaseStore) take(mac net.HardwareAddr) *lease {
 		return nil
 	}
 	delete(s.leases, key)
-	copy := *l
-	return &copy
+	cp := *l
+	return &cp
 }
 
 func (s *leaseStore) restore(l *lease) {

@@ -4,6 +4,7 @@ package dhcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -83,9 +84,8 @@ func (s *Server) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("start control server: %w", err)
 	}
-	if control != nil {
-		defer control.close()
-	}
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
 
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpv4.ServerPort}
 	srv, err := server4.NewServer(s.conf.Interface, laddr,
@@ -105,21 +105,33 @@ func (s *Server) Run(ctx context.Context) error {
 	go func() { errCh <- srv.Serve() }()
 	var controlErrCh <-chan error
 	if control != nil {
-		controlErrCh = control.serve()
+		controlErrCh = control.serve(runCtx)
 	}
 
 	select {
 	case <-ctx.Done():
 		_ = srv.Close()
-		if err := s.leases.save(); err != nil {
-			logger.Error(ctx, err, "persist leases on shutdown")
+		cancelRun()
+		if control != nil {
+			if err := <-controlErrCh; err != nil {
+				return fmt.Errorf("stop control server: %w", err)
+			}
 		}
 		logger.Info(ctx, "DHCP server stopped")
 		return nil
 	case err := <-errCh:
+		cancelRun()
 		return fmt.Errorf("DHCP server: %w", err)
 	case err := <-controlErrCh:
 		_ = srv.Close()
+		cancelRun()
+		if err == nil {
+			if ctx.Err() != nil {
+				logger.Info(ctx, "DHCP server stopped")
+				return nil
+			}
+			return errors.New("control server stopped unexpectedly")
+		}
 		return fmt.Errorf("control server: %w", err)
 	}
 }

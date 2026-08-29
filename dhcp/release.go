@@ -8,13 +8,6 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
-	logger := log.WithFunc("dhcp.handleRelease")
-	if _, err := s.ReleaseLease(ctx, mac); err != nil {
-		logger.Error(ctx, err, "release lease")
-	}
-}
-
 // ReleaseLease reclaims mac's lease, route, and pool slot. It is idempotent so
 // VM lifecycle callers can safely retry after an uncertain response.
 func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, error) {
@@ -42,4 +35,11 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 	s.pool.release(l.IP)
 	logger.Infof(ctx, "RELEASE %s <- %s", l.IP, mac)
 	return true, nil
+}
+
+func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
+	logger := log.WithFunc("dhcp.handleRelease")
+	if _, err := s.ReleaseLease(ctx, mac); err != nil {
+		logger.Error(ctx, err, "release lease")
+	}
 }
