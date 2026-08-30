@@ -43,8 +43,10 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "%d ENIs ready", len(enis))
 
+	eniIDs := make([]string, len(enis))
 	var allIPs []string
-	for _, eni := range enis {
+	for i, eni := range enis {
+		eniIDs[i] = eni.NetworkInterfaceID
 		var existing []string
 		for _, pip := range eni.PrivateIPSets.PrivateIPSet {
 			if !pip.Primary {
@@ -56,7 +58,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		if shortfall := ipsPerENI - len(existing); shortfall > 0 {
 			ips, assignErr := assignSecondaryIPs(ctx, eni.NetworkInterfaceID, shortfall)
 			if assignErr != nil {
-				// One ENI's failure is tolerable; the len(allIPs)==0 guard below aborts only if every ENI failed.
+				// one ENI failing is tolerable; only the all-failed case below aborts
 				logger.Warnf(ctx, "assign secondary IPs to %s: %v", eni.NetworkInterfaceID, assignErr)
 				continue
 			}
@@ -68,20 +70,11 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
-	// A down secondary NIC makes its assigned IPs unreachable, so fail fast rather than pool dead addresses.
-	secondaryNICs := platform.DefaultSecondaryNICs(v.Name())
-	for _, iface := range secondaryNICs {
-		if linkErr := bringLinkUp(iface); linkErr != nil {
-			return nil, fmt.Errorf("bring up %s: %w", iface, linkErr)
-		}
-	}
+	secondaryNICs := platform.SecondaryNICNames(len(enis))
 
-	gateway := cfg.Gateway
-	if gateway == "" {
-		gateway, err = platform.FirstHostIP(cfg.SubnetCIDR)
-		if err != nil {
-			return nil, fmt.Errorf("compute gateway: %w", err)
-		}
+	gateway, err := platform.ResolveGateway(cfg.Gateway, cfg.SubnetCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("compute gateway: %w", err)
 	}
 
 	platform.SortIPs(allIPs)
@@ -92,6 +85,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		Gateway:       gateway,
 		PrimaryNIC:    primaryNIC,
 		SecondaryNICs: secondaryNICs,
+		ENIIDs:        eniIDs,
 		IPs:           allIPs,
 	}, nil
 }

@@ -10,8 +10,7 @@ const (
 	subsystem = "net"
 )
 
-// DHCPLeaseTotal counts DHCP lease-grant attempts by terminal outcome,
-// recorded once per REQUEST that names an IP (result=ok|failed).
+// DHCPLeaseTotal counts lease grant attempts by result, once per REQUEST that names an IP.
 var DHCPLeaseTotal = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Namespace: namespace,
@@ -22,8 +21,7 @@ var DHCPLeaseTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
-// Register installs the static cocoon-net collectors on reg. The per-scrape
-// pool collector is registered separately via NewPoolCollector.
+// Register installs the static collectors; the pool collector is registered separately.
 func Register(reg prometheus.Registerer) {
 	reg.MustRegister(DHCPLeaseTotal)
 }

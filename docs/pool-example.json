@@ -3,8 +3,27 @@
   "nodeName": "cocoon-pool",
   "subnet": "172.20.100.0/24",
   "gateway": "172.20.100.1",
-  "ips": ["172.20.100.2", "172.20.100.3"],
-  "eniIDs": ["eni-xxx"],
+  "primaryNIC": "eth0",
+  "secondaryNICs": [
+    "eth1",
+    "eth2",
+    "eth3",
+    "eth4",
+    "eth5",
+    "eth6",
+    "eth7"
+  ],
+  "ips": [
+    "172.20.100.2",
+    "172.20.100.3"
+  ],
+  "eniIDs": [
+    "eni-xxx"
+  ],
   "subnetID": "subnet-xxx",
+  "dnsServers": [
+    "8.8.8.8",
+    "1.1.1.1"
+  ],
   "updatedAt": "2026-04-04T06:00:00Z"
 }

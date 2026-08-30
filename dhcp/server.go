@@ -1,5 +1,4 @@
-// Package dhcp implements the cocoon-net DHCP server: in-memory leases,
-// IP pool management, and request/release handlers.
+// Package dhcp implements the cocoon-net DHCP server: leases, the IP pool, and the request/release handlers.
 package dhcp
 
 import (
@@ -21,7 +20,7 @@ const (
 	offerTimeout         = 60 * time.Second
 )
 
-// Route ops are indirected through vars so tests can stub the netlink calls.
+// route ops are vars so tests can stub the netlink calls
 var (
 	addRouteFn = addRoute
 	delRouteFn = delRoute
@@ -39,8 +38,7 @@ type Config struct {
 	ControlSocket string
 }
 
-// Server is an embedded DHCPv4 server that allocates IPs from a fixed pool,
-// manages leases, and adds/removes /32 host routes on lease events.
+// Server is an embedded DHCPv4 server that leases IPs from a fixed pool and keeps /32 host routes in step.
 type Server struct {
 	conf   Config
 	pool   *ipPool
@@ -99,7 +97,7 @@ func (s *Server) Run(ctx context.Context) error {
 	logger.Infof(ctx, "DHCP server listening on %s (pool: %d IPs, gateway: %s)",
 		s.conf.Interface, s.pool.freeCount(), s.conf.Gateway)
 
-	go s.cleanupLoop(ctx)
+	go s.cleanupLoop(runCtx)
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve() }()
@@ -117,6 +115,8 @@ func (s *Server) Run(ctx context.Context) error {
 				return fmt.Errorf("stop control server: %w", err)
 			}
 		}
+		// held until exit: a handler still queued must not start a transaction the process cannot finish
+		s.lifecycleMu.Lock()
 		logger.Info(ctx, "DHCP server stopped")
 		return nil
 	case err := <-errCh:

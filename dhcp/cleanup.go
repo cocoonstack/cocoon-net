@@ -9,15 +9,23 @@ import (
 
 func (s *Server) restoreLeases(ctx context.Context) {
 	logger := log.WithFunc("dhcp.restoreLeases")
-	active := s.leases.activeLeases()
-	for _, l := range active {
-		s.pool.markUsed(l.IP)
+	restored := 0
+	for _, l := range s.leases.activeLeases() {
+		if !s.pool.markUsed(l.IP) {
+			s.leases.take(l.MAC)
+			if err := delRouteFn(l.IP, s.linkIndex); err != nil {
+				logger.Warnf(ctx, "del route %s: %v", l.IP, err)
+			}
+			logger.Warnf(ctx, "dropped lease %s <- %s: outside the pool", l.IP, l.MAC)
+			continue
+		}
 		if err := addRouteFn(l.IP, s.linkIndex); err != nil {
 			logger.Errorf(ctx, err, "restore route %s", l.IP)
 		}
+		restored++
 	}
-	if len(active) > 0 {
-		logger.Infof(ctx, "restored %d active leases", len(active))
+	if restored > 0 {
+		logger.Infof(ctx, "restored %d active leases", restored)
 	}
 }
 
@@ -37,7 +45,6 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				logger.Infof(ctx, "reclaimed abandoned offer %s", ip)
 			}
 
-			// delRoute before release: a concurrent DISCOVER could otherwise claim the freed IP and our late delRoute would black-hole it.
 			expired := s.leases.expireOld()
 			if len(expired) > 0 {
 				if err := s.leases.save(); err != nil {
@@ -48,10 +55,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				}
 			}
 			for _, l := range expired {
-				if err := delRouteFn(l.IP, s.linkIndex); err != nil {
-					logger.Errorf(ctx, err, "del expired route %s", l.IP)
-				}
-				s.pool.release(l.IP)
+				s.freeIP(ctx, l.IP)
 				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
 			}
 			s.lifecycleMu.Unlock()

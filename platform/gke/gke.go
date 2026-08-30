@@ -29,6 +29,8 @@ const (
 	metadataTimeout  = 5 * time.Second
 )
 
+var metadataHeaders = map[string]string{"Metadata-Flavor": "Google"}
+
 var _ platform.CloudPlatform = (*GKE)(nil)
 
 // GKE implements CloudPlatform for Google Kubernetes Engine.

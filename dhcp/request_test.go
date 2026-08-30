@@ -2,6 +2,7 @@ package dhcp
 
 import (
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -12,14 +13,10 @@ import (
 	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
-// These tests share the global DHCPLeaseTotal counter and the addRouteFn stub,
-// so they run sequentially (no t.Parallel) and assert on before/after deltas.
-
 func TestHandleRequestRecordsOK(t *testing.T) {
 	srv, conn, peer := newTestServer(t)
 	defer conn.Close()
 
-	// Stub the netlink route add so the ACK path is reachable off-Linux.
 	orig := addRouteFn
 	addRouteFn = func(net.IP, int) error { return nil }
 	defer func() { addRouteFn = orig }()
@@ -45,7 +42,7 @@ func TestHandleRequestRecordsFailed(t *testing.T) {
 
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	reqIP := net.ParseIP("10.0.0.10").To4()
-	srv.leases.add(mustMAC(t, "aa:bb:cc:dd:ee:99"), reqIP, time.Hour) // held by another MAC -> NAK
+	srv.leases.add(mustMAC(t, "aa:bb:cc:dd:ee:99"), reqIP, time.Hour)
 
 	okBefore, failBefore := leaseCounts()
 	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
@@ -73,6 +70,67 @@ func TestHandleRequestNoIPNotCounted(t *testing.T) {
 
 	if okAfter != okBefore || failAfter != failBefore {
 		t.Errorf("request without an IP must not record an outcome (ok %v->%v, failed %v->%v)", okBefore, okAfter, failBefore, failAfter)
+	}
+}
+
+func TestHandleRequestPersistsBeforeACK(t *testing.T) {
+	srv, conn, peer := newTestServer(t)
+	conn.Close()
+
+	orig := addRouteFn
+	addRouteFn = func(net.IP, int) error { return nil }
+	defer func() { addRouteFn = orig }()
+
+	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
+	reqIP := net.ParseIP("10.0.0.10").To4()
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
+
+	reloaded := newLeaseStore(srv.conf.LeaseFile)
+	if err := reloaded.load(); err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := reloaded.ipForMAC(mac); !got.Equal(reqIP) {
+		t.Fatalf("lease not on disk after a failed ACK write: %v", got)
+	}
+}
+
+func TestHandleRequestRetriesPersistenceBeforeACK(t *testing.T) {
+	srv, conn, peer := newTestServer(t)
+	conn.Close()
+
+	orig := addRouteFn
+	addRouteFn = func(net.IP, int) error { return nil }
+	defer func() { addRouteFn = orig }()
+
+	leaseFile := filepath.Join(t.TempDir(), "missing", "leases.json")
+	srv.leases.filePath = leaseFile
+	packetConn := &countingPacketConn{}
+	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
+	reqIP := net.ParseIP("10.0.0.10").To4()
+	msg := requestMsg(t, mac, reqIP)
+
+	srv.handleRequest(t.Context(), packetConn, peer, msg, mac)
+	if packetConn.writes != 0 {
+		t.Fatalf("got %d replies after persistence failed, want 0", packetConn.writes)
+	}
+	if got := srv.leases.ipForMAC(mac); !got.Equal(reqIP) {
+		t.Fatalf("got in-memory lease %v after persistence failed, want %s", got, reqIP)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(leaseFile), 0o755); err != nil {
+		t.Fatalf("create lease directory: %v", err)
+	}
+	srv.handleRequest(t.Context(), packetConn, peer, msg, mac)
+	if packetConn.writes != 1 {
+		t.Fatalf("got %d replies after persistence recovered, want 1", packetConn.writes)
+	}
+
+	reloaded := newLeaseStore(leaseFile)
+	if err := reloaded.load(); err != nil {
+		t.Fatalf("load persisted lease: %v", err)
+	}
+	if got := reloaded.ipForMAC(mac); !got.Equal(reqIP) {
+		t.Fatalf("got persisted lease %v after retry, want %s", got, reqIP)
 	}
 }
 
@@ -115,3 +173,26 @@ func leaseCounts() (ok, failed float64) {
 	return testutil.ToFloat64(metrics.DHCPLeaseTotal.WithLabelValues("ok")),
 		testutil.ToFloat64(metrics.DHCPLeaseTotal.WithLabelValues("failed"))
 }
+
+type countingPacketConn struct {
+	writes int
+}
+
+func (c *countingPacketConn) ReadFrom([]byte) (int, net.Addr, error) {
+	return 0, nil, net.ErrClosed
+}
+
+func (c *countingPacketConn) WriteTo(p []byte, _ net.Addr) (int, error) {
+	c.writes++
+	return len(p), nil
+}
+
+func (c *countingPacketConn) Close() error { return nil }
+
+func (c *countingPacketConn) LocalAddr() net.Addr { return &net.UDPAddr{} }
+
+func (c *countingPacketConn) SetDeadline(time.Time) error { return nil }
+
+func (c *countingPacketConn) SetReadDeadline(time.Time) error { return nil }
+
+func (c *countingPacketConn) SetWriteDeadline(time.Time) error { return nil }

@@ -13,8 +13,7 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// dropRuleComment tags cocoon-net's DROP rules for teardown. Must stay
-// quote-safe ([-_+./0-9A-Za-z]) or iptables -S quotes it, breaking removal.
+// dropRuleComment must stay quote-safe or iptables -S quotes it and teardown cannot match the rule.
 const dropRuleComment = "cocoon-net-drop"
 
 // ClearDropRules removes every FORWARD egress-isolation rule cocoon-net installed.
@@ -26,8 +25,7 @@ func ClearDropRules(ctx context.Context) error {
 	return reconcileDropRules(ctx, ipt, nil)
 }
 
-// reconcileDropRules deletes tagged FORWARD drop rules not in want (nil want
-// removes all); callers insert desired rules first so the reconcile is gapless.
+// reconcileDropRules deletes tagged FORWARD drop rules not in want; nil want removes them all.
 func reconcileDropRules(ctx context.Context, ipt *iptables.IPTables, want []string) error {
 	logger := log.WithFunc("node.reconcileDropRules")
 
@@ -72,14 +70,11 @@ func ruleDest(fields []string) (string, bool) {
 	return "", false
 }
 
-// setupIPTables installs FORWARD rules between secondary NICs and the bridge, a NAT
-// MASQUERADE for outbound VM traffic, and egress DROP rules blocking VM traffic to
-// dropCIDRs: L3-routed cross-node/external ranges that need no br_netfilter.
+// setupIPTables installs the NIC<->bridge FORWARD accepts, the NAT MASQUERADE, and the egress DROPs for dropCIDRs.
 func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []string, dropInternal bool, dropCIDRs []string) error {
 	logger := log.WithFunc("node.setupIPTables")
 
-	// Resolve and validate the drop targets before installing any rule, so a
-	// bad CIDR fails without leaving the chain half-configured.
+	// validate every drop target first so a bad CIDR cannot leave the chain half-configured
 	dropTargets, err := resolveDropTargets(subnetCIDR, dropInternal, dropCIDRs)
 	if err != nil {
 		return err
@@ -91,33 +86,32 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 	}
 
 	for _, iface := range secondaryNICs {
-		if err := iptEnsure(ipt, "filter", "FORWARD", "-i", iface, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
-			return fmt.Errorf("iptables FORWARD %s->%s: %w", iface, BridgeName, err)
+		if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", iface, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
+			return fmt.Errorf("add FORWARD %s->%s: %w", iface, BridgeName, err)
 		}
-		if err := iptEnsure(ipt, "filter", "FORWARD", "-i", BridgeName, "-o", iface, "-j", "ACCEPT"); err != nil {
-			return fmt.Errorf("iptables FORWARD %s->%s: %w", BridgeName, iface, err)
+		if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", BridgeName, "-o", iface, "-j", "ACCEPT"); err != nil {
+			return fmt.Errorf("add FORWARD %s->%s: %w", BridgeName, iface, err)
 		}
 	}
 
-	if err := iptEnsure(ipt, "filter", "FORWARD", "-i", BridgeName, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
-		return fmt.Errorf("iptables FORWARD %s<->%s: %w", BridgeName, BridgeName, err)
+	if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", BridgeName, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
+		return fmt.Errorf("add FORWARD %s<->%s: %w", BridgeName, BridgeName, err)
 	}
 
-	if err := iptEnsure(ipt, "nat", "POSTROUTING", "-s", subnetCIDR, "!", "-o", BridgeName, "-j", "MASQUERADE"); err != nil {
-		return fmt.Errorf("iptables NAT MASQUERADE: %w", err)
+	if err := ensureIPTRule(ipt, "nat", "POSTROUTING", false, "-s", subnetCIDR, "!", "-o", BridgeName, "-j", "MASQUERADE"); err != nil {
+		return fmt.Errorf("add NAT MASQUERADE: %w", err)
 	}
 
 	if len(dropTargets) > 0 {
-		// Insert at FORWARD's head so DROP precedes the ACCEPT rules; the -i match
-		// spares return traffic, VM-to-gateway is INPUT not FORWARD.
+		// inserted at the head so DROP precedes the ACCEPTs; VM-to-gateway is INPUT, not FORWARD
 		for _, dst := range dropTargets {
-			if err := iptInsert(ipt, "filter", "FORWARD", "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
-				return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
+			if err := ensureIPTRule(ipt, "filter", "FORWARD", true, "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
+				return fmt.Errorf("insert FORWARD drop %s: %w", dst, err)
 			}
 		}
 	}
 
-	// Prune rules no longer wanted; desired ones were inserted above, so gapless.
+	// desired rules were inserted above, so pruning the rest is gapless
 	if err := reconcileDropRules(ctx, ipt, dropTargets); err != nil {
 		return fmt.Errorf("reconcile drop rules: %w", err)
 	}
@@ -126,8 +120,7 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 	return nil
 }
 
-// resolveDropTargets canonicalizes CIDRs to iptables -S form so reconcile can
-// match them; IPv6 is rejected because the rules go through the IPv4 binary.
+// resolveDropTargets canonicalizes CIDRs to iptables -S form; IPv6 is rejected, the rules go through the IPv4 binary.
 func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string) ([]string, error) {
 	var raw []string
 	if dropInternal {
@@ -139,7 +132,7 @@ func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string
 	for _, cidr := range raw {
 		ip, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid drop CIDR %q: %w", cidr, err)
+			return nil, fmt.Errorf("parse drop CIDR %q: %w", cidr, err)
 		}
 		if ip.To4() == nil {
 			return nil, fmt.Errorf("drop CIDR %q must be IPv4", cidr)
@@ -149,7 +142,7 @@ func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string
 	return out, nil
 }
 
-func iptEnsure(ipt *iptables.IPTables, table, chain string, args ...string) error {
+func ensureIPTRule(ipt *iptables.IPTables, table, chain string, atHead bool, args ...string) error {
 	exists, err := ipt.Exists(table, chain, args...)
 	if err != nil {
 		return fmt.Errorf("check rule: %w", err)
@@ -157,22 +150,8 @@ func iptEnsure(ipt *iptables.IPTables, table, chain string, args ...string) erro
 	if exists {
 		return nil
 	}
-	if err := ipt.Append(table, chain, args...); err != nil {
-		return fmt.Errorf("append rule: %w", err)
+	if atHead {
+		return ipt.Insert(table, chain, 1, args...)
 	}
-	return nil
-}
-
-func iptInsert(ipt *iptables.IPTables, table, chain string, args ...string) error {
-	exists, err := ipt.Exists(table, chain, args...)
-	if err != nil {
-		return fmt.Errorf("check rule: %w", err)
-	}
-	if exists {
-		return nil
-	}
-	if err := ipt.Insert(table, chain, 1, args...); err != nil {
-		return fmt.Errorf("insert rule: %w", err)
-	}
-	return nil
+	return ipt.Append(table, chain, args...)
 }

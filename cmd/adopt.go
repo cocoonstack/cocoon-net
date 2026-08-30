@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -37,15 +38,14 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err := resolvePlatform(ctx); err != nil {
 		return err
 	}
+	if err := resolveSubnet(); err != nil {
+		return err
+	}
 	dnsServers := splitTrim(flagDNS, ",")
 
-	gateway := flagGateway
-	if gateway == "" {
-		gw, err := platform.FirstHostIP(flagSubnet)
-		if err != nil {
-			return fmt.Errorf("compute default gateway from %s: %w", flagSubnet, err)
-		}
-		gateway = gw
+	gateway, err := platform.ResolveGateway(flagGateway, flagSubnet)
+	if err != nil {
+		return fmt.Errorf("compute gateway: %w", err)
 	}
 
 	ips, err := platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
@@ -54,10 +54,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	}
 
 	platformName := flagPlatform
-	primaryNIC := flagPrimaryNIC
-	if primaryNIC == "" {
-		primaryNIC = platform.DefaultNIC(platformName)
-	}
+	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
 	secondaryNICs := platform.DefaultSecondaryNICs(platformName)
 
 	if flagDryRun {
@@ -96,20 +93,6 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	nodeCfg := &node.Config{
-		Gateway:            gateway,
-		SubnetCIDR:         flagSubnet,
-		PrimaryNIC:         primaryNIC,
-		SecondaryNICs:      secondaryNICs,
-		SkipIPTables:       !flagManageIPTables,
-		DropInternalAccess: flagDropInternal,
-		DropCIDRs:          flagDropCIDRs,
-	}
-	if err := node.Setup(ctx, nodeCfg); err != nil {
-		return fmt.Errorf("node setup: %w", err)
-	}
-	logger.Info(ctx, "node networking configured (adopted, cloud side untouched)")
-
 	state := &pool.State{
 		Platform:           platformName,
 		NodeName:           flagNodeName,
@@ -123,6 +106,11 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
+	if err := node.Setup(ctx, nodeConfigFromState(state, !flagManageIPTables)); err != nil {
+		return fmt.Errorf("node setup: %w", err)
+	}
+	logger.Info(ctx, "node networking configured (adopted, cloud side untouched)")
+
 	if err := state.Save(ctx); err != nil {
 		return fmt.Errorf("save pool state: %w", err)
 	}

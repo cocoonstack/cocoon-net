@@ -31,6 +31,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err := resolvePlatform(ctx); err != nil {
 		return err
 	}
+	if err := resolveSubnet(); err != nil {
+		return err
+	}
 	dnsServers := splitTrim(flagDNS, ",")
 
 	cfg := &platform.Config{
@@ -54,7 +57,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Seed state before provisioning so a mid-provision failure still leaves teardown something to act on.
 	state := &pool.State{
 		Platform:           flagPlatform,
 		NodeName:           cfg.NodeName,
@@ -65,8 +67,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	if err := state.Save(ctx); err != nil {
-		return fmt.Errorf("save seed pool state: %w", err)
+	if _, loadErr := pool.Load(ctx, flagStateDir); loadErr != nil {
+		// a first provisioning that fails midway still leaves teardown something to act on
+		if err := state.Save(ctx); err != nil {
+			return fmt.Errorf("save seed pool state: %w", err)
+		}
 	}
 
 	plat, err := newPlatform(ctx, flagPlatform)
@@ -85,6 +90,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	state.Gateway = result.Gateway
 	state.PrimaryNIC = result.PrimaryNIC
 	state.SecondaryNICs = result.SecondaryNICs
+	state.ENIIDs = result.ENIIDs
 	state.IPs = result.IPs
 	state.AliasRangeName = result.AliasRangeName
 	if err := state.Save(ctx); err != nil {
@@ -92,15 +98,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	}
 	logger.Infof(ctx, "pool state saved to %s/pool.json", flagStateDir)
 
-	nodeCfg := &node.Config{
-		Gateway:            result.Gateway,
-		SubnetCIDR:         result.SubnetCIDR,
-		PrimaryNIC:         result.PrimaryNIC,
-		SecondaryNICs:      result.SecondaryNICs,
-		DropInternalAccess: flagDropInternal,
-		DropCIDRs:          flagDropCIDRs,
-	}
-	if err := node.Setup(ctx, nodeCfg); err != nil {
+	if err := node.Setup(ctx, nodeConfigFromState(state, false)); err != nil {
 		return fmt.Errorf("node setup: %w", err)
 	}
 	logger.Info(ctx, "node networking configured")

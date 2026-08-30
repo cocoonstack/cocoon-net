@@ -16,7 +16,7 @@ variable; runtime state (what was provisioned, and for whom) lives in
 | `--primary-nic` | auto-detect | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
-| `--lease-file` | `/var/lib/cocoon/net/leases.json` | DHCP lease persistence file |
+| `--lease-file` | `/var/lib/cocoon/net/leases.json` | (daemon) DHCP lease persistence file |
 | `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |
@@ -63,7 +63,7 @@ back. Example (Volcengine):
 }
 ```
 
-Full example file: [docs/pool-example.json](pool-example.json).
+Example file: [docs/pool-example.json](pool-example.json).
 
 | Field | Description |
 |---|---|
@@ -74,7 +74,7 @@ Full example file: [docs/pool-example.json](pool-example.json).
 | `primaryNIC` | Host primary NIC |
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
 | `ips` | Allocatable DHCP pool (excludes the gateway) |
-| `eniIDs` | Volcengine only: attached ENI IDs |
+| `eniIDs` | Volcengine only: the ENIs `init` recorded; `teardown` deletes exactly these |
 | `subnetID` | Volcengine only: the VM subnet's ID |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |

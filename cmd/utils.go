@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cocoonstack/cocoon-net/node"
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
@@ -27,8 +28,7 @@ var (
 	flagDropInternal bool
 	flagDropCIDRs    []string
 
-	// flagManageIPTables is the inverse of node.Config.SkipIPTables,
-	// exposed only on adopt (off by default to preserve host rules).
+	// flagManageIPTables inverts node.Config.SkipIPTables; adopt-only, off by default to preserve host rules.
 	flagManageIPTables bool
 )
 
@@ -56,8 +56,19 @@ func loadPoolState(ctx context.Context) (*pool.State, error) {
 	return state, nil
 }
 
-// resolvePlatform fills an empty flagPlatform in place so downstream readers
-// (dry-run output included) see the detected name without re-detecting.
+func nodeConfigFromState(state *pool.State, skipIPTables bool) *node.Config {
+	return &node.Config{
+		Gateway:            state.Gateway,
+		SubnetCIDR:         state.Subnet,
+		PrimaryNIC:         state.PrimaryNIC,
+		SecondaryNICs:      state.SecondaryNICs,
+		SkipIPTables:       skipIPTables,
+		DropInternalAccess: state.DropInternalAccess,
+		DropCIDRs:          state.DropCIDRs,
+	}
+}
+
+// resolvePlatform fills flagPlatform in place so dry-run output sees the detected name too.
 func resolvePlatform(ctx context.Context) error {
 	if flagPlatform != "" {
 		return nil
@@ -67,6 +78,16 @@ func resolvePlatform(ctx context.Context) error {
 		return err
 	}
 	flagPlatform = detected
+	return nil
+}
+
+// resolveSubnet masks flagSubnet in place so the persisted CIDR matches what the cloud reports back at teardown.
+func resolveSubnet() error {
+	_, ipNet, err := net.ParseCIDR(flagSubnet)
+	if err != nil {
+		return fmt.Errorf("parse --subnet %q: %w", flagSubnet, err)
+	}
+	flagSubnet = ipNet.String()
 	return nil
 }
 

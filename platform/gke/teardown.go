@@ -13,8 +13,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Only this node's alias is removed; the shared secondary range is
-// operator-owned and preserved (see docs/gke.md).
+// Teardown removes only this node's alias; the shared secondary range is operator-owned (see docs/gke.md).
 func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error {
 	logger := log.WithFunc("gke.Teardown")
 
@@ -23,7 +22,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 		return fmt.Errorf("fetch gce metadata: %w", err)
 	}
 
-	rangeName := resolveAliasRangeName(cfg.AliasRangeName)
+	rangeName := cmp.Or(cfg.AliasRangeName, aliasRangeName)
 
 	current, err := describeNic0Aliases(ctx, project, zone, instance)
 	if err != nil {
@@ -43,7 +42,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 	if !removed {
 		logger.Warnf(ctx, "alias %s:%s not present on nic0 of %s; skipping gcloud update", rangeName, cfg.SubnetCIDR, instance)
 	} else {
-		if _, err := gcloudRun(
+		if _, err := runGcloud(
 			ctx,
 			"compute", "instances", "network-interfaces", "update", instance,
 			"--project", project, "--zone", zone,
@@ -60,11 +59,4 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 	}
 
 	return nil
-}
-
-// resolveAliasRangeName falls back to the package default when the
-// persisted range name is empty — state written before AliasRangeName
-// existed, or a node adopted without an explicit range.
-func resolveAliasRangeName(rangeName string) string {
-	return cmp.Or(rangeName, aliasRangeName)
 }

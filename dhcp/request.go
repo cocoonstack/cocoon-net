@@ -24,8 +24,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// Record exactly one outcome per grant attempt: default failed, flipped to
-	// ok only once the ACK is on the wire.
+	// one outcome per grant attempt: failed unless the ACK reaches the wire
 	result := "failed"
 	defer func() { metrics.DHCPLeaseTotal.WithLabelValues(result).Inc() }()
 
@@ -51,7 +50,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// The /32 route lands before lease state, else the client leases an unreachable IP; RouteReplace is idempotent so re-REQUESTs are safe.
+	// the /32 lands before the lease so the client never leases an unreachable IP; RouteReplace makes re-REQUESTs safe
 	if err := addRouteFn(reqIP, s.linkIndex); err != nil {
 		if !alreadyHeld {
 			s.pool.release(reqIP)
@@ -66,25 +65,23 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	}
 	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
 		if e.MAC == mac.String() {
-			if err := delRouteFn(e.IP, s.linkIndex); err != nil {
-				logger.Errorf(ctx, err, "del orphan route %s after %s rebind to %s", e.IP, mac, reqIP)
-			}
-			s.pool.release(e.IP)
+			s.freeIP(ctx, e.IP)
 			logger.Warnf(ctx, "rebound %s from %s to %s; released old IP", mac, e.IP, reqIP)
 			continue
 		}
 		logger.Warnf(ctx, "evicted stale lease for %s held by %s while ACKing %s", reqIP, e.MAC, mac)
 	}
 
+	if err := s.leases.save(); err != nil {
+		logger.Error(ctx, err, "persist leases before ACK")
+		return
+	}
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		// Route + lease are committed; client will re-REQUEST and hit isLeasedTo.
-		logger.Errorf(ctx, err, "send ACK to %s (committed; awaiting client retry)", mac)
+		// route and lease are committed; the client re-REQUESTs and hits isLeasedTo
+		logger.Errorf(ctx, err, "send ACK to %s", mac)
 		return
 	}
 
 	result = "ok"
-	if err := s.leases.save(); err != nil {
-		logger.Error(ctx, err, "persist leases after ACK")
-	}
 	logger.Infof(ctx, "ACK %s -> %s", reqIP, mac)
 }

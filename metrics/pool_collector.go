@@ -4,25 +4,27 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PoolState is a point-in-time snapshot of DHCP pool occupancy, read on each
-// scrape so the gauges self-clean when the daemon stops (no stale series).
+// PoolState is a per-scrape snapshot of pool occupancy, so the gauges vanish with the daemon.
 type PoolState struct {
 	Available int
 	Active    int
 }
 
+// PoolStateFunc samples the live pool on every scrape.
+type PoolStateFunc func() PoolState
+
 var _ prometheus.Collector = (*PoolCollector)(nil)
 
 // PoolCollector emits DHCP pool gauges by reading live server state per scrape.
 type PoolCollector struct {
-	stateFn func() PoolState
+	stateFn PoolStateFunc
 
 	availableDesc *prometheus.Desc
 	activeDesc    *prometheus.Desc
 }
 
 // NewPoolCollector creates a collector; stateFn is called on every scrape.
-func NewPoolCollector(stateFn func() PoolState) *PoolCollector {
+func NewPoolCollector(stateFn PoolStateFunc) *PoolCollector {
 	return &PoolCollector{
 		stateFn:       stateFn,
 		availableDesc: prometheus.NewDesc(prometheus.BuildFQName(namespace, subsystem, "dhcp_pool_available"), "Number of unallocated IPs in the DHCP pool.", nil, nil),

@@ -1,6 +1,4 @@
-// Package platform abstracts cloud-specific network provisioning behind a
-// common interface, with auto-detection and per-cloud implementations
-// (currently GKE and Volcengine).
+// Package platform abstracts cloud-specific network provisioning behind CloudPlatform, with auto-detection and per-cloud implementations.
 package platform
 
 import (
@@ -24,10 +22,7 @@ type CloudPlatform interface {
 	ProvisionNetwork(ctx context.Context, cfg *Config) (*NetworkResult, error)
 	// Status returns current IP pool status.
 	Status(ctx context.Context) (*PoolStatus, error)
-	// Teardown removes cloud networking resources belonging to this node.
-	// The caller passes in persisted state (alias range name, subnet CIDR,
-	// etc.) so platforms can remove exactly what they created without
-	// touching resources shared across nodes.
+	// Teardown removes the cloud resources this node claimed, using the persisted state in cfg.
 	Teardown(ctx context.Context, cfg *TeardownConfig) error
 }
 
@@ -47,20 +42,17 @@ type NetworkResult struct {
 	Gateway        string
 	PrimaryNIC     string
 	SecondaryNICs  []string // Volcengine: eth1..eth7; GKE: nil
+	ENIIDs         []string
 	IPs            []string
 	AliasRangeName string // GKE: the GCE secondary range the alias came from; empty on other platforms
 }
 
-// TeardownConfig is the persisted-state snapshot Teardown needs to undo
-// exactly what this node claimed at init/adopt time.
+// TeardownConfig is the persisted state Teardown needs to undo what this node claimed.
 type TeardownConfig struct {
-	// AliasRangeName is the GCE secondary range the node's alias was bound
-	// from (GKE). Empty means "use platform default" — set for state written
-	// before this field existed, or for adopted nodes whose alias was
-	// provisioned manually.
+	ENIIDs []string
+	// AliasRangeName is the GCE secondary range the alias was bound from; empty means the package default.
 	AliasRangeName string
-	// SubnetCIDR is the per-node alias CIDR to remove (GKE) or, for
-	// Volcengine, informational only (teardown walks attached ENIs).
+	// SubnetCIDR is the per-node alias CIDR to remove on GKE; informational on Volcengine.
 	SubnetCIDR string
 }
 
@@ -69,8 +61,7 @@ type PoolStatus struct {
 	SubnetID string
 	ENIIDs   []string
 	IPs      []string
-	// AliasRanges lists NAME:CIDR alias entries currently bound to the
-	// primary NIC (GKE). Empty on platforms that don't use named aliases.
+	// AliasRanges lists NAME:CIDR entries bound to the primary NIC (GKE only).
 	AliasRanges []string
 }
 
@@ -84,17 +75,19 @@ func DefaultNIC(platformName string) string {
 	}
 }
 
-// DefaultSecondaryNICs returns the expected secondary NIC names for a platform.
-// GKE has no secondary NICs; Volcengine uses eth1..eth7 for ENIs.
+// DefaultSecondaryNICs returns eth1..eth7 for Volcengine; nil elsewhere.
 func DefaultSecondaryNICs(platformName string) []string {
-	switch platformName {
-	case PlatformVolcengine:
-		nics := make([]string, volcengineSecondaryNICCount)
-		for i := range nics {
-			nics[i] = fmt.Sprintf("eth%d", i+1)
-		}
-		return nics
-	default:
-		return nil
+	if platformName == PlatformVolcengine {
+		return SecondaryNICNames(volcengineSecondaryNICCount)
 	}
+	return nil
+}
+
+// SecondaryNICNames returns eth1..ethN, the kernel names of N attached ENIs.
+func SecondaryNICNames(n int) []string {
+	nics := make([]string, n)
+	for i := range nics {
+		nics[i] = fmt.Sprintf("eth%d", i+1)
+	}
+	return nics
 }

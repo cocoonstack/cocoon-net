@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/cocoonstack/cocoon-net/utils"
 )
 
 const leaseFilePerm = 0o644
@@ -43,7 +44,6 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-// add commits a lease, returning any prior entries it displaced.
 func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -57,7 +57,7 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	}
 
 	for k, l := range s.leases {
-		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
+		if l.IP.Equal(newIP) && k != key {
 			delete(s.leases, k)
 			evicted = append(evicted, evictedLease{MAC: k, IP: l.IP})
 		}
@@ -71,9 +71,7 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	return evicted
 }
 
-// take atomically removes and returns the lease for mac. Expired entries are
-// returned too so explicit lifecycle cleanup can reclaim their pool slot
-// without waiting for the periodic expiry pass.
+// take also returns an expired entry so an explicit release reclaims its slot before the sweep.
 func (s *leaseStore) take(mac net.HardwareAddr) *lease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -96,8 +94,7 @@ func (s *leaseStore) restore(l *lease) {
 func (s *leaseStore) restoreAll(leases []lease) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i := range leases {
-		l := leases[i]
+	for _, l := range leases {
 		s.leases[l.MAC.String()] = &l
 	}
 }
@@ -176,29 +173,9 @@ func (s *leaseStore) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal leases: %w", err)
 	}
-	// Unique temp file per call: save() holds only RLock, so savers sharing a fixed temp path would interleave O_TRUNC writes and rename a corrupt leases.json.
-	tmp, err := os.CreateTemp(filepath.Dir(s.filePath), "leases-*.json")
-	if err != nil {
-		return fmt.Errorf("create leases tmp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("write leases tmp: %w", err)
-	}
-	if err := tmp.Chmod(leaseFilePerm); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("chmod leases tmp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("close leases tmp: %w", err)
-	}
-	if err := os.Rename(tmpPath, s.filePath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename leases: %w", err)
+	// every caller holds lifecycleMu, so the fixed tmp path has a single writer
+	if err := utils.WriteFileAtomic(s.filePath, data, leaseFilePerm); err != nil {
+		return fmt.Errorf("save leases: %w", err)
 	}
 	return nil
 }

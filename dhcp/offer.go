@@ -66,7 +66,7 @@ func (p *pendingOffers) ipForMAC(mac net.HardwareAddr) (active, expired net.IP) 
 	if time.Now().Before(o.Expiry) {
 		return o.IP, nil
 	}
-	// Expired — reclaim immediately instead of waiting for cleanupLoop.
+	// expired: reclaim now instead of waiting for cleanupLoop
 	delete(p.offers, key)
 	return nil, o.IP
 }
@@ -78,7 +78,6 @@ func (p *pendingOffers) isOfferedTo(mac net.HardwareAddr, ip net.IP) bool {
 	return ok && o.IP.Equal(ip) && time.Now().Before(o.Expiry)
 }
 
-// expireOld removes expired offers and returns their IPs for pool reclamation.
 func (p *pendingOffers) expireOld() []net.IP {
 	p.mu.Lock()
 	defer p.mu.Unlock()
