@@ -97,8 +97,7 @@ func (s *leaseStore) restore(l *lease) {
 func (s *leaseStore) restoreAll(leases []lease) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i := range leases {
-		l := leases[i]
+	for _, l := range leases {
 		s.leases[l.MAC.String()] = &l
 	}
 }

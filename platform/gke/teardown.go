@@ -23,7 +23,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 		return fmt.Errorf("fetch gce metadata: %w", err)
 	}
 
-	rangeName := resolveAliasRangeName(cfg.AliasRangeName)
+	rangeName := cmp.Or(cfg.AliasRangeName, aliasRangeName)
 
 	current, err := describeNic0Aliases(ctx, project, zone, instance)
 	if err != nil {
@@ -60,11 +60,4 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 	}
 
 	return nil
-}
-
-// resolveAliasRangeName falls back to the package default when the
-// persisted range name is empty — state written before AliasRangeName
-// existed, or a node adopted without an explicit range.
-func resolveAliasRangeName(rangeName string) string {
-	return cmp.Or(rangeName, aliasRangeName)
 }
