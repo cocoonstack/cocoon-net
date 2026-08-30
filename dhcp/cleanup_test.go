@@ -7,9 +7,14 @@ import (
 )
 
 func TestRestoreLeasesDropsIPOutsidePool(t *testing.T) {
-	orig := addRouteFn
+	origAdd, origDel := addRouteFn, delRouteFn
 	addRouteFn = func(net.IP, int) error { return nil }
-	defer func() { addRouteFn = orig }()
+	var deleted []net.IP
+	delRouteFn = func(ip net.IP, _ int) error {
+		deleted = append(deleted, ip)
+		return nil
+	}
+	defer func() { addRouteFn, delRouteFn = origAdd, origDel }()
 
 	srv, conn, _ := newTestServer(t)
 	defer conn.Close()
@@ -33,5 +38,8 @@ func TestRestoreLeasesDropsIPOutsidePool(t *testing.T) {
 	}
 	if got := srv.pool.freeCount(); got != 1 {
 		t.Fatalf("free = %d, want 1", got)
+	}
+	if len(deleted) != 1 || !deleted[0].Equal(foreign) {
+		t.Fatalf("deleted routes = %v, want the dropped lease's %s", deleted, foreign)
 	}
 }

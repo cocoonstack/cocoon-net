@@ -9,19 +9,23 @@ import (
 
 func (s *Server) restoreLeases(ctx context.Context) {
 	logger := log.WithFunc("dhcp.restoreLeases")
-	active := s.leases.activeLeases()
-	for _, l := range active {
+	restored := 0
+	for _, l := range s.leases.activeLeases() {
 		if !s.pool.markUsed(l.IP) {
 			s.leases.take(l.MAC)
+			if err := delRouteFn(l.IP, s.linkIndex); err != nil {
+				logger.Warnf(ctx, "del route %s: %v", l.IP, err)
+			}
 			logger.Warnf(ctx, "dropped lease %s <- %s: outside the pool", l.IP, l.MAC)
 			continue
 		}
 		if err := addRouteFn(l.IP, s.linkIndex); err != nil {
 			logger.Errorf(ctx, err, "restore route %s", l.IP)
 		}
+		restored++
 	}
-	if len(active) > 0 {
-		logger.Infof(ctx, "restored %d active leases", len(active))
+	if restored > 0 {
+		logger.Infof(ctx, "restored %d active leases", restored)
 	}
 }
 
