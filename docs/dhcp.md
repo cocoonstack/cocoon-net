@@ -51,7 +51,9 @@ On every lease event the daemon updates the host's routing table so the new
 IP is immediately reachable:
 
 - **Lease granted** -- adds a `/32` route for the VM's IP via `cni0`.
-- **Lease released or expired** -- removes the `/32` route.
+- **Lease released or expired** -- removes the `/32` route. A DHCPRELEASE
+  counts only when it arrives from the leased address with `ciaddr` set to it;
+  the client hardware address alone is not trusted.
 
 This keeps the kernel routing table minimal (only currently-leased IPs are
 routed) and means a VM's IP is reachable within the VPC as soon as it has a

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/projecteru2/core/log"
 )
 
@@ -38,8 +39,17 @@ func (s *Server) freeIP(ctx context.Context, ip net.IP) {
 	s.pool.release(ip)
 }
 
-func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {
+func (s *Server) handleRelease(ctx context.Context, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
 	logger := log.WithFunc("dhcp.handleRelease")
+	ip := s.leases.ipForMAC(mac)
+	if ip == nil {
+		return
+	}
+	// chaddr is client-chosen and macspoofchk pins only the L2 source, so the release must come from the address it frees
+	if src, ok := peer.(*net.UDPAddr); !ok || !src.IP.Equal(ip) || !msg.ClientIPAddr.Equal(ip) {
+		logger.Warnf(ctx, "ignored RELEASE of %s <- %s from %s", ip, mac, peer)
+		return
+	}
 	if _, err := s.ReleaseLease(ctx, mac); err != nil {
 		logger.Error(ctx, err, "release lease")
 	}
