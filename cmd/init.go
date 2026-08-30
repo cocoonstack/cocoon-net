@@ -57,7 +57,6 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Seed state before provisioning so a mid-provision failure still leaves teardown something to act on.
 	state := &pool.State{
 		Platform:           flagPlatform,
 		NodeName:           cfg.NodeName,
@@ -68,8 +67,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	if err := state.Save(ctx); err != nil {
-		return fmt.Errorf("save seed pool state: %w", err)
+	if _, loadErr := pool.Load(ctx, flagStateDir); loadErr != nil {
+		// a first provisioning that fails midway still leaves teardown something to act on
+		if err := state.Save(ctx); err != nil {
+			return fmt.Errorf("save seed pool state: %w", err)
+		}
 	}
 
 	plat, err := newPlatform(ctx, flagPlatform)
