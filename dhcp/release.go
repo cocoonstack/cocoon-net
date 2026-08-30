@@ -30,7 +30,7 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 	return true, nil
 }
 
-// freeIP deletes the /32 first: a DISCOVER may claim the IP the moment it is back in the pool, and a late route delete would black-hole it.
+// freeIP deletes the /32 before releasing: a crash in between must not leave a route no restart path removes.
 func (s *Server) freeIP(ctx context.Context, ip net.IP) {
 	logger := log.WithFunc("dhcp.freeIP")
 	if err := delRouteFn(ip, s.linkIndex); err != nil {

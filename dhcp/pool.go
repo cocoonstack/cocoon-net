@@ -61,7 +61,6 @@ func (p *ipPool) markUsed(ip net.IP) bool {
 	return true
 }
 
-// tryClaim moves ip from free to used under p.mu, so two concurrent REQUESTs for the same free IP cannot both win.
 func (p *ipPool) tryClaim(ip net.IP) bool {
 	v4 := ip.To4()
 	p.mu.Lock()
