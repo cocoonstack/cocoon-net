@@ -35,6 +35,7 @@ pool.json  <----------        |
 | `pool/` | `pool.State` -- the allocation pool persisted to `pool.json` (atomic tmp+rename write) |
 | `node/` | Secondary NIC bring-up, `cni0` bridge, sysctl, iptables FORWARD + NAT, and the CNI conflist writer |
 | `dhcp/` | The embedded DHCPv4 server: lease store, IP pool, dynamic route add/remove -- see [DHCP server](dhcp.md) |
+| `metrics/` | Prometheus collectors: the lease grant counter and per-scrape pool gauges -- see [Configuration](configuration.md#metrics) |
 
 `platform.CloudPlatform` is the seam between cloud-specific provisioning and
 everything else: `ProvisionNetwork` returns a `NetworkResult` (assigned IPs,

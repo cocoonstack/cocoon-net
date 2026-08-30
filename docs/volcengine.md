@@ -105,7 +105,7 @@ sudo cocoon-net adopt \
 
 This brings the secondary NICs up, configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. Cloud-side teardown (detaching/deleting ENIs) must still be done manually.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. Note that `cocoon-net teardown` detaches and deletes every non-primary ENI on the instance, hand-provisioned ones included; to keep them, skip `teardown` and remove the state files yourself.
 
 ## Manual Steps (for reference)
 

@@ -90,7 +90,7 @@ sudo cocoon-net adopt \
 
 This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `AliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown logs "alias not present, skipping" and the entry stays — remove it manually.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `AliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown warns that the alias is not present and the entry stays — remove it manually.
 
 ## Manual Steps (for reference)
 

@@ -108,10 +108,11 @@ sudo cocoon-net init \
 sudo cocoon-net daemon
 ```
 
-The daemon loads the pool from `pool.json`, re-applies node setup (sysctl,
-bridge, iptables, CNI conflist -- pass `--skip-iptables` to omit the
-iptables step), and starts the DHCP server described above. See
+The daemon loads the pool from `pool.json`, re-applies node setup (secondary
+NICs up, bridge, sysctl, iptables, CNI conflist -- pass `--skip-iptables` to
+omit the iptables step), and starts the DHCP server described above. It holds
+`/run/cocoon-net.pid` and refuses to start while another daemon owns it. See
 [Installation](installation.md#systemd-unit) for the systemd unit.
 
-On `cocoon-net teardown`, both `pool.json` and the DHCP `leases.json` are
-removed.
+On `cocoon-net teardown`, both `pool.json` and `<state-dir>/leases.json` are
+removed; a daemon started with a custom `--lease-file` keeps that file.
