@@ -103,8 +103,11 @@ func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	s.add(macA, ip, -time.Hour)
 
 	evicted := s.add(macB, ip, time.Hour)
-	if len(evicted) != 0 {
-		t.Fatalf("expired other-MAC entry should not be reported, got %d", len(evicted))
+	if len(evicted) != 1 || evicted[0].MAC != macA.String() {
+		t.Fatalf("expired other-MAC entry must be evicted so the sweep cannot reclaim macB's IP, got %v", evicted)
+	}
+	if got := s.ipForMAC(macA); got != nil {
+		t.Fatalf("macA still holds %s", got)
 	}
 }
 

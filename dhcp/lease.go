@@ -57,7 +57,7 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	}
 
 	for k, l := range s.leases {
-		if l.IP.Equal(newIP) && k != key && now.Before(l.Expiry) {
+		if l.IP.Equal(newIP) && k != key {
 			delete(s.leases, k)
 			evicted = append(evicted, evictedLease{MAC: k, IP: l.IP})
 		}
