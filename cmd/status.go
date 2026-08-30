@@ -48,7 +48,6 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	if status != nil {
 		if len(status.ENIIDs) > 0 {
 			fmt.Printf("ENIs:       %d\n", len(status.ENIIDs))
-			fmt.Printf("SubnetID:   %s\n", status.SubnetID)
 		}
 		if len(status.AliasRanges) > 0 {
 			fmt.Printf("Aliases:    %s\n", strings.Join(status.AliasRanges, ", "))

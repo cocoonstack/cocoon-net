@@ -60,9 +60,8 @@ type TeardownConfig struct {
 
 // PoolStatus holds live status information from the cloud platform.
 type PoolStatus struct {
-	SubnetID string
-	ENIIDs   []string
-	IPs      []string
+	ENIIDs []string
+	IPs    []string
 	// AliasRanges lists NAME:CIDR entries bound to the primary NIC (GKE only).
 	AliasRanges []string
 }

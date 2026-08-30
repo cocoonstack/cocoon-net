@@ -58,7 +58,6 @@ back. Example (Volcengine):
   "gateway": "172.20.100.1",
   "ips": ["172.20.100.2", "172.20.100.3"],
   "eniIDs": ["eni-xxx"],
-  "subnetID": "subnet-xxx",
   "updatedAt": "2026-04-04T06:00:00Z"
 }
 ```
@@ -75,7 +74,6 @@ Example file: [docs/pool-example.json](pool-example.json).
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
 | `ips` | Allocatable DHCP pool (excludes the gateway) |
 | `eniIDs` | Volcengine only: the ENIs `init` recorded; `teardown` deletes exactly these |
-| `subnetID` | Volcengine only: the VM subnet's ID |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |
 | `dropInternalAccess`, `dropCIDRs` | Mirrors `--drop-internal-access` / `--drop-cidr`, reapplied by the daemon on every start |
