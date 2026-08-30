@@ -2,6 +2,7 @@ package volcengine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/projecteru2/core/log"
@@ -23,6 +24,7 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 		return fmt.Errorf("list ENIs: %w", err)
 	}
 
+	var errs error
 	for _, eni := range enis {
 		if eni.Type == eniTypePrimary {
 			continue
@@ -34,7 +36,7 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 			"--InstanceId", instanceID,
 		)
 		if detachErr != nil {
-			logger.Errorf(ctx, detachErr, "detach ENI %s (skipping delete)", eni.NetworkInterfaceID)
+			errs = errors.Join(errs, fmt.Errorf("detach ENI %s: %w", eni.NetworkInterfaceID, detachErr))
 			continue
 		}
 
@@ -47,10 +49,10 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 		)
 		if delErr != nil {
-			logger.Errorf(ctx, delErr, "delete ENI %s", eni.NetworkInterfaceID)
-		} else {
-			logger.Infof(ctx, "deleted ENI %s", eni.NetworkInterfaceID)
+			errs = errors.Join(errs, fmt.Errorf("delete ENI %s: %w", eni.NetworkInterfaceID, delErr))
+			continue
 		}
+		logger.Infof(ctx, "deleted ENI %s", eni.NetworkInterfaceID)
 	}
-	return nil
+	return errs
 }
