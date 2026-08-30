@@ -155,6 +155,6 @@ func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr
 	case dhcpv4.MessageTypeRequest:
 		s.handleRequest(ctx, conn, peer, msg, mac)
 	case dhcpv4.MessageTypeRelease:
-		s.handleRelease(ctx, mac)
+		s.handleRelease(ctx, peer, msg, mac)
 	}
 }

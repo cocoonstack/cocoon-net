@@ -24,6 +24,8 @@ type CloudPlatform interface {
 	Status(ctx context.Context) (*PoolStatus, error)
 	// Teardown removes the cloud resources this node claimed, using the persisted state in cfg.
 	Teardown(ctx context.Context, cfg *TeardownConfig) error
+	// Adopt applies the host-side fixes a hand-provisioned node needs; it makes no cloud API calls.
+	Adopt(ctx context.Context, cfg *Config) error
 }
 
 // Config holds the parameters for network provisioning.

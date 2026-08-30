@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
+
+const vePageSize = 100
 
 func getSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
 	out, err := runVe(
@@ -31,28 +34,8 @@ func getSecurityGroupID(ctx context.Context, vpcID string) (string, error) {
 }
 
 func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error) {
-	out, err := runVe(
-		ctx, "vpc", "DescribeSubnets",
-		"--VpcId", vpcID, "--PageSize", "100",
-	)
-	if err != nil {
-		return "", fmt.Errorf("describe subnets: %w", err)
-	}
-	var listResp struct {
-		Result struct {
-			Subnets []struct {
-				SubnetID  string `json:"SubnetId"`
-				CIDRBlock string `json:"CidrBlock"`
-			} `json:"Subnets"`
-		} `json:"Result"`
-	}
-	if unmarshalErr := json.Unmarshal(out, &listResp); unmarshalErr != nil {
-		return "", fmt.Errorf("parse describe subnets: %w", unmarshalErr)
-	}
-	for _, s := range listResp.Result.Subnets {
-		if s.CIDRBlock == cidr {
-			return s.SubnetID, nil
-		}
+	if id, err := findSubnet(ctx, vpcID, cidr); err != nil || id != "" {
+		return id, err
 	}
 
 	zone, err := fetchMeta(ctx, "/placement/availability-zone")
@@ -79,4 +62,35 @@ func ensureSubnet(ctx context.Context, vpcID, cidr, name string) (string, error)
 		return "", fmt.Errorf("parse create subnet response: %w", err)
 	}
 	return resp.Result.SubnetID, nil
+}
+
+func findSubnet(ctx context.Context, vpcID, cidr string) (string, error) {
+	for page := 1; ; page++ {
+		out, err := runVe(
+			ctx, "vpc", "DescribeSubnets",
+			"--VpcId", vpcID, "--PageSize", strconv.Itoa(vePageSize), "--PageNumber", strconv.Itoa(page),
+		)
+		if err != nil {
+			return "", fmt.Errorf("describe subnets: %w", err)
+		}
+		var resp struct {
+			Result struct {
+				Subnets []struct {
+					SubnetID  string `json:"SubnetId"`
+					CIDRBlock string `json:"CidrBlock"`
+				} `json:"Subnets"`
+			} `json:"Result"`
+		}
+		if err := json.Unmarshal(out, &resp); err != nil {
+			return "", fmt.Errorf("parse describe subnets: %w", err)
+		}
+		for _, s := range resp.Result.Subnets {
+			if s.CIDRBlock == cidr {
+				return s.SubnetID, nil
+			}
+		}
+		if len(resp.Result.Subnets) < vePageSize {
+			return "", nil
+		}
+	}
 }

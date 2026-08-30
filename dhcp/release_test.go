@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/insomniacslk/dhcp/dhcpv4"
 )
 
 func TestReleaseLeaseReclaimsRouteAndPoolSlot(t *testing.T) {
@@ -117,5 +119,37 @@ func TestReleaseLeaseRollsBackWhenPersistenceFails(t *testing.T) {
 	}
 	if got := srv.leases.ipForMAC(mac); !got.Equal(ip) {
 		t.Errorf("restored lease = %s, want %s", got, ip)
+	}
+}
+
+func TestHandleReleaseRequiresTheLeasedSource(t *testing.T) {
+	srv, conn, _ := newTestServer(t)
+	defer conn.Close()
+	orig := delRouteFn
+	delRouteFn = func(net.IP, int) error { return nil }
+	defer func() { delRouteFn = orig }()
+
+	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
+	ip := net.ParseIP("10.0.0.10").To4()
+	srv.pool.tryClaim(ip)
+	srv.leases.add(mac, ip, time.Hour)
+	msg, err := dhcpv4.New(dhcpv4.WithMessageType(dhcpv4.MessageTypeRelease))
+	if err != nil {
+		t.Fatalf("build release: %v", err)
+	}
+	msg.ClientHWAddr = mac
+	msg.ClientIPAddr = ip
+
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: net.ParseIP("10.0.0.11").To4(), Port: 68}, msg, mac)
+	if got := srv.leases.ipForMAC(mac); !got.Equal(ip) {
+		t.Fatalf("RELEASE from another address freed the lease: %v", got)
+	}
+
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, msg, mac)
+	if got := srv.leases.ipForMAC(mac); got != nil {
+		t.Fatalf("RELEASE from the leased address was ignored: %s", got)
+	}
+	if got := srv.pool.freeCount(); got != 2 {
+		t.Fatalf("free = %d, want 2", got)
 	}
 }
