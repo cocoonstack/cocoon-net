@@ -99,7 +99,7 @@ func (s *Server) Run(ctx context.Context) error {
 	logger.Infof(ctx, "DHCP server listening on %s (pool: %d IPs, gateway: %s)",
 		s.conf.Interface, s.pool.freeCount(), s.conf.Gateway)
 
-	go s.cleanupLoop(ctx)
+	go s.cleanupLoop(runCtx)
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve() }()
