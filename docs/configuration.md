@@ -74,7 +74,7 @@ Example file: [docs/pool-example.json](pool-example.json).
 | `primaryNIC` | Host primary NIC |
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
 | `ips` | Allocatable DHCP pool (excludes the gateway) |
-| `eniIDs` | Volcengine only: attached ENI IDs |
+| `eniIDs` | Volcengine only: the ENIs `init` recorded; `teardown` deletes exactly these |
 | `subnetID` | Volcengine only: the VM subnet's ID |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |

@@ -42,12 +42,14 @@ type NetworkResult struct {
 	Gateway        string
 	PrimaryNIC     string
 	SecondaryNICs  []string // Volcengine: eth1..eth7; GKE: nil
+	ENIIDs         []string
 	IPs            []string
 	AliasRangeName string // GKE: the GCE secondary range the alias came from; empty on other platforms
 }
 
 // TeardownConfig is the persisted state Teardown needs to undo what this node claimed.
 type TeardownConfig struct {
+	ENIIDs []string
 	// AliasRangeName is the GCE secondary range the alias was bound from; empty means the package default.
 	AliasRangeName string
 	// SubnetCIDR is the per-node alias CIDR to remove on GKE; informational on Volcengine.

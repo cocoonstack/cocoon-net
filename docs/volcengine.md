@@ -83,7 +83,7 @@ sudo cocoon-net init \
 This will:
 1. Detect the Volcengine platform via instance metadata (`http://100.96.0.96/latest/meta-data/`)
 2. Create subnet `172.20.100.0/24` in the VPC (if it does not exist)
-3. Create 7 secondary ENIs in the VM subnet and attach them to the instance
+3. Reuse attached secondary ENIs and create enough in the VM subnet to reach 7
 4. Assign 20 secondary private IPs per ENI (140 total)
 5. Bring up `eth1`–`eth7` interfaces
 6. Configure `cni0` bridge, iptables, sysctl
@@ -105,7 +105,7 @@ sudo cocoon-net adopt \
 
 This brings the secondary NICs up, configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. Note that `cocoon-net teardown` detaches and deletes every non-primary ENI on the instance, hand-provisioned ones included; to keep them, skip `teardown` and remove the state files yourself.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. An adopted node records no ENI IDs, so `cocoon-net teardown` falls back to detaching and deleting every non-primary ENI on the instance, hand-provisioned ones included; to keep them, skip `teardown` and remove the state files yourself. A node set up by `init` tears down only the ENIs listed in `pool.json`.
 
 ## Manual Steps (for reference)
 

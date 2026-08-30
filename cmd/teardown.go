@@ -50,6 +50,7 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 	}
 
 	td := &platform.TeardownConfig{
+		ENIIDs:         state.ENIIDs,
 		AliasRangeName: state.AliasRangeName,
 		SubnetCIDR:     state.Subnet,
 	}

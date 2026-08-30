@@ -74,6 +74,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 
 	if err := s.leases.save(); err != nil {
 		logger.Error(ctx, err, "persist leases before ACK")
+		return
 	}
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
 		// route and lease are committed; the client re-REQUESTs and hits isLeasedTo

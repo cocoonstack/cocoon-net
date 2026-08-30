@@ -43,8 +43,10 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "%d ENIs ready", len(enis))
 
+	eniIDs := make([]string, len(enis))
 	var allIPs []string
-	for _, eni := range enis {
+	for i, eni := range enis {
+		eniIDs[i] = eni.NetworkInterfaceID
 		var existing []string
 		for _, pip := range eni.PrivateIPSets.PrivateIPSet {
 			if !pip.Primary {
@@ -83,6 +85,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		Gateway:       gateway,
 		PrimaryNIC:    primaryNIC,
 		SecondaryNICs: secondaryNICs,
+		ENIIDs:        eniIDs,
 		IPs:           allIPs,
 	}, nil
 }

@@ -90,6 +90,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	state.Gateway = result.Gateway
 	state.PrimaryNIC = result.PrimaryNIC
 	state.SecondaryNICs = result.SecondaryNICs
+	state.ENIIDs = result.ENIIDs
 	state.IPs = result.IPs
 	state.AliasRangeName = result.AliasRangeName
 	if err := state.Save(ctx); err != nil {

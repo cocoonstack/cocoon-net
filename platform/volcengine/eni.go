@@ -18,6 +18,7 @@ const (
 
 type networkInterface struct {
 	NetworkInterfaceID string `json:"NetworkInterfaceId"`
+	DeviceID           string `json:"DeviceId"`
 	Type               string `json:"Type"`
 	PrivateIPSets      struct {
 		PrivateIPSet []struct {
@@ -127,11 +128,21 @@ func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string,
 }
 
 func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error) {
-	out, err := runVe(
-		ctx, "vpc", "DescribeNetworkInterfaces",
-		"--InstanceId", instanceID,
-		"--PageSize", "100",
-	)
+	return describeENIs(ctx, "--InstanceId", instanceID)
+}
+
+func listENIsByIDs(ctx context.Context, eniIDs []string) ([]networkInterface, error) {
+	args := make([]string, 0, len(eniIDs)*2)
+	for i, id := range eniIDs {
+		args = append(args, fmt.Sprintf("--NetworkInterfaceIds.%d", i+1), id)
+	}
+	return describeENIs(ctx, args...)
+}
+
+func describeENIs(ctx context.Context, filters ...string) ([]networkInterface, error) {
+	args := append([]string{"vpc", "DescribeNetworkInterfaces"}, filters...)
+	args = append(args, "--PageSize", "100")
+	out, err := runVe(ctx, args...)
 	if err != nil {
 		return nil, err
 	}
