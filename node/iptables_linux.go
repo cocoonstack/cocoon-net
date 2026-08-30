@@ -92,19 +92,19 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 
 	for _, iface := range secondaryNICs {
 		if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", iface, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
-			return fmt.Errorf("iptables FORWARD %s->%s: %w", iface, BridgeName, err)
+			return fmt.Errorf("add FORWARD %s->%s: %w", iface, BridgeName, err)
 		}
 		if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", BridgeName, "-o", iface, "-j", "ACCEPT"); err != nil {
-			return fmt.Errorf("iptables FORWARD %s->%s: %w", BridgeName, iface, err)
+			return fmt.Errorf("add FORWARD %s->%s: %w", BridgeName, iface, err)
 		}
 	}
 
 	if err := ensureIPTRule(ipt, "filter", "FORWARD", false, "-i", BridgeName, "-o", BridgeName, "-j", "ACCEPT"); err != nil {
-		return fmt.Errorf("iptables FORWARD %s<->%s: %w", BridgeName, BridgeName, err)
+		return fmt.Errorf("add FORWARD %s<->%s: %w", BridgeName, BridgeName, err)
 	}
 
 	if err := ensureIPTRule(ipt, "nat", "POSTROUTING", false, "-s", subnetCIDR, "!", "-o", BridgeName, "-j", "MASQUERADE"); err != nil {
-		return fmt.Errorf("iptables NAT MASQUERADE: %w", err)
+		return fmt.Errorf("add NAT MASQUERADE: %w", err)
 	}
 
 	if len(dropTargets) > 0 {
@@ -112,7 +112,7 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 		// spares return traffic, VM-to-gateway is INPUT not FORWARD.
 		for _, dst := range dropTargets {
 			if err := ensureIPTRule(ipt, "filter", "FORWARD", true, "-i", BridgeName, "-d", dst, "-m", "comment", "--comment", dropRuleComment, "-j", "DROP"); err != nil {
-				return fmt.Errorf("iptables FORWARD drop %s: %w", dst, err)
+				return fmt.Errorf("insert FORWARD drop %s: %w", dst, err)
 			}
 		}
 	}
@@ -139,7 +139,7 @@ func resolveDropTargets(subnetCIDR string, dropInternal bool, dropCIDRs []string
 	for _, cidr := range raw {
 		ip, ipNet, err := net.ParseCIDR(cidr)
 		if err != nil {
-			return nil, fmt.Errorf("invalid drop CIDR %q: %w", cidr, err)
+			return nil, fmt.Errorf("parse drop CIDR %q: %w", cidr, err)
 		}
 		if ip.To4() == nil {
 			return nil, fmt.Errorf("drop CIDR %q must be IPv4", cidr)

@@ -43,7 +43,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 	if !removed {
 		logger.Warnf(ctx, "alias %s:%s not present on nic0 of %s; skipping gcloud update", rangeName, cfg.SubnetCIDR, instance)
 	} else {
-		if _, err := gcloudRun(
+		if _, err := runGcloud(
 			ctx,
 			"compute", "instances", "network-interfaces", "update", instance,
 			"--project", project, "--zone", zone,

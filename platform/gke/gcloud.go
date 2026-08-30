@@ -30,9 +30,9 @@ func (a aliasEntry) String() string {
 	return a.RangeName + ":" + a.IPCIDRRange
 }
 
-// gcloudRun executes the `gcloud` CLI. Every invocation is a tech-debt
+// runGcloud executes the `gcloud` CLI. Every invocation is a tech-debt
 // hotspot documented at package level — see gke.go.
-func gcloudRun(ctx context.Context, args ...string) ([]byte, error) {
+func runGcloud(ctx context.Context, args ...string) ([]byte, error) {
 	return platform.RunSubprocess(ctx, "gcloud", args...)
 }
 
@@ -68,7 +68,7 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 		"secondary range %s not found on subnet %s; creating with CIDR %s (multi-node clusters should pre-create a broader range, see docs/gke.md)",
 		aliasRangeName, subnet, cidr,
 	)
-	if _, err := gcloudRun(
+	if _, err := runGcloud(
 		ctx,
 		"compute", "networks", "subnets", "update", subnet,
 		"--project", project, "--region", region,
@@ -82,7 +82,7 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 // describeSecondaryRange returns the CIDR of the named secondary range on the
 // GCE subnet, or "" if no range with that name exists.
 func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeName string) (string, error) {
-	out, err := gcloudRun(
+	out, err := runGcloud(
 		ctx,
 		"compute", "networks", "subnets", "describe", subnet,
 		"--project", project, "--region", region,
@@ -136,7 +136,7 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 	}
 	merged = append(merged, fmt.Sprintf("%s:%s", aliasRangeName, cidr))
 
-	if _, err := gcloudRun(
+	if _, err := runGcloud(
 		ctx,
 		"compute", "instances", "network-interfaces", "update",
 		instance,
@@ -154,7 +154,7 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 // describeNic0Aliases returns the alias IP ranges currently bound to nic0
 // on the given instance; errors if nic0 is absent from the describe output.
 func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {
-	out, err := gcloudRun(
+	out, err := runGcloud(
 		ctx,
 		"compute", "instances", "describe", instance,
 		"--project", project, "--zone", zone,

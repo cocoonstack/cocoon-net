@@ -30,7 +30,7 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 			continue
 		}
 
-		_, detachErr := veRun(
+		_, detachErr := runVe(
 			ctx, "vpc", "DetachNetworkInterface",
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 			"--InstanceId", instanceID,
@@ -44,7 +44,7 @@ func (v *Volcengine) Teardown(ctx context.Context, _ *platform.TeardownConfig) e
 			return err
 		}
 
-		_, delErr := veRun(
+		_, delErr := runVe(
 			ctx, "vpc", "DeleteNetworkInterface",
 			"--NetworkInterfaceId", eni.NetworkInterfaceID,
 		)

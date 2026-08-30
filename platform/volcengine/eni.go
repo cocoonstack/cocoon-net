@@ -34,13 +34,13 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 	if err != nil {
 		return nil, fmt.Errorf("list existing ENIs: %w", err)
 	}
-	result := reusableENIs(existing, count)
+	result := selectReusableENIs(existing, count)
 	if len(result) > 0 {
 		logger.Infof(ctx, "reusing %d existing ENI(s)", len(result))
 	}
 
 	for i := len(result) + 1; i <= count; i++ {
-		out, err := veRun(
+		out, err := runVe(
 			ctx, "vpc", "CreateNetworkInterface",
 			"--SubnetId", subnetID,
 			"--SecurityGroupIds.1", sgID,
@@ -61,14 +61,14 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
 			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
-			if _, delErr := veRun(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
+			if _, delErr := runVe(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
 				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
 			}
 			cancel()
 			return result, err
 		}
 
-		_, attachErr := veRun(
+		_, attachErr := runVe(
 			ctx, "vpc", "AttachNetworkInterface",
 			"--NetworkInterfaceId", eniID,
 			"--InstanceId", instanceID,
@@ -76,7 +76,7 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		if attachErr != nil {
 			// Best-effort delete to avoid leaking ENI quota; degraded not fatal, keep building the pool.
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
-			if _, delErr := veRun(
+			if _, delErr := runVe(
 				ctx, "vpc", "DeleteNetworkInterface",
 				"--NetworkInterfaceId", eniID,
 			); delErr != nil {
@@ -95,7 +95,7 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 	return result, nil
 }
 
-func reusableENIs(enis []networkInterface, count int) []networkInterface {
+func selectReusableENIs(enis []networkInterface, count int) []networkInterface {
 	var reusable []networkInterface
 	for _, e := range enis {
 		if e.Type != eniTypePrimary {
@@ -106,7 +106,7 @@ func reusableENIs(enis []networkInterface, count int) []networkInterface {
 }
 
 func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string, error) {
-	out, err := veRun(
+	out, err := runVe(
 		ctx, "vpc", "AssignPrivateIpAddresses",
 		"--NetworkInterfaceId", eniID,
 		"--SecondaryPrivateIpAddressCount", strconv.Itoa(count),
@@ -127,7 +127,7 @@ func assignSecondaryIPs(ctx context.Context, eniID string, count int) ([]string,
 }
 
 func listENIs(ctx context.Context, instanceID string) ([]networkInterface, error) {
-	out, err := veRun(
+	out, err := runVe(
 		ctx, "vpc", "DescribeNetworkInterfaces",
 		"--InstanceId", instanceID,
 		"--PageSize", "100",

@@ -51,7 +51,7 @@ func TestReusableENIs(t *testing.T) {
 			t.Parallel()
 
 			enis := unmarshalENIList(t, tt.fixture)
-			if got := len(reusableENIs(enis, tt.count)); got != tt.want {
+			if got := len(selectReusableENIs(enis, tt.count)); got != tt.want {
 				t.Errorf("got %d reusable ENIs, want %d", got, tt.want)
 			}
 		})

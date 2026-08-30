@@ -15,12 +15,12 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 
 	instance, err = fetch("/instance/name")
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("instance name: %w", err)
+		return "", "", "", "", fmt.Errorf("fetch instance name: %w", err)
 	}
 
 	zoneURL, err := fetch("/instance/zone")
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("zone: %w", err)
+		return "", "", "", "", fmt.Errorf("fetch zone: %w", err)
 	}
 	// zoneURL is "projects/PROJECT_NUMBER/zones/ZONE"; the numeric segment is
 	// not the project ID gcloud accepts, so the ID is fetched separately below.
@@ -29,12 +29,12 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 
 	project, err = fetch("/project/project-id")
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("project-id: %w", err)
+		return "", "", "", "", fmt.Errorf("fetch project id: %w", err)
 	}
 
 	subnetURL, err := fetch("/instance/network-interfaces/0/subnetwork")
 	if err != nil {
-		return "", "", "", "", fmt.Errorf("subnetwork: %w", err)
+		return "", "", "", "", fmt.Errorf("fetch subnetwork: %w", err)
 	}
 	// subnetURL format: "projects/PROJECT/regions/REGION/subnetworks/SUBNET"
 	subnetParts := strings.Split(subnetURL, "/")
