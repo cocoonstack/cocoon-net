@@ -20,12 +20,12 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 		if staleIP != nil {
 			s.pool.release(staleIP)
 		}
-	}
-	if ip == nil {
-		ip = s.pool.allocate()
 		if ip == nil {
-			logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
-			return
+			ip = s.pool.allocate()
+			if ip == nil {
+				logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
+				return
+			}
 		}
 		if oldIP := s.offers.add(mac, ip); oldIP != nil {
 			s.pool.release(oldIP)
