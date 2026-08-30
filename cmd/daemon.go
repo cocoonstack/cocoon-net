@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
+	"github.com/cocoonstack/cocoon-common/httpx"
 	"github.com/cocoonstack/cocoon-net/dhcp"
 	"github.com/cocoonstack/cocoon-net/metrics"
 	"github.com/cocoonstack/cocoon-net/node"
@@ -27,8 +28,7 @@ const (
 	defaultControlSocket = "/run/cocoon-net/control.sock"
 	defaultMetricsAddr   = ":9092"
 
-	metricsReadHeaderTimeout = 5 * time.Second
-	metricsShutdownTimeout   = 5 * time.Second
+	metricsShutdownTimeout = 5 * time.Second
 )
 
 var (
@@ -133,8 +133,7 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	return srv.Run(ctx)
 }
 
-// serveMetrics failures are logged, never fatal — metrics must not take down
-// live VM networking.
+// serveMetrics never fails the daemon: metrics must not take down live VM networking.
 func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 	logger := log.WithFunc("cmd.serveMetrics")
 
@@ -145,20 +144,9 @@ func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
-	server := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: metricsReadHeaderTimeout}
-
-	//nolint:gosec // G118: detaching is the point — this goroutine only runs once ctx is done.
-	go func() {
-		<-ctx.Done()
-		// WithoutCancel: the parent is already canceled, but shutdown must still drain.
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), metricsShutdownTimeout)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
-	}()
-
 	go func() {
 		logger.Infof(ctx, "metrics server listening on %s", addr)
-		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := httpx.Run(ctx, metricsShutdownTimeout, httpx.HTTPServerSpec(httpx.NewServer(addr, mux))); err != nil {
 			logger.Error(ctx, err, "metrics server")
 		}
 	}()
