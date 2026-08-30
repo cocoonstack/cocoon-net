@@ -55,7 +55,11 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 
 	platformName := flagPlatform
 	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
-	secondaryNICs := node.PresentLinks(platform.DefaultSecondaryNICs(platformName))
+	secondaryNICCandidates := platform.DefaultSecondaryNICs(platformName)
+	secondaryNICs := node.PresentLinks(secondaryNICCandidates)
+	if platformName == platform.PlatformVolcengine && len(secondaryNICs) == 0 {
+		return fmt.Errorf("no secondary NIC found; expected one of %s", strings.Join(secondaryNICCandidates, ", "))
+	}
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")
@@ -108,10 +112,10 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	}
 	plat, err := newPlatform(ctx, platformName)
 	if err != nil {
-		return fmt.Errorf("init platform: %w", err)
+		return fmt.Errorf("adopt platform: %w", err)
 	}
 	if err := plat.Adopt(ctx, &platform.Config{NodeName: flagNodeName, SubnetCIDR: flagSubnet, Gateway: gateway, PrimaryNIC: primaryNIC}); err != nil {
-		logger.Warnf(ctx, "platform adopt fixes: %v", err)
+		return fmt.Errorf("adopt platform: %w", err)
 	}
 	if err := node.Setup(ctx, nodeConfigFromState(state, !flagManageIPTables)); err != nil {
 		return fmt.Errorf("node setup: %w", err)
