@@ -73,30 +73,16 @@ func newPlatform(ctx context.Context, name string) (platform.CloudPlatform, erro
 	}
 }
 
+// detectPlatform probes GKE first: its DNS name fails in milliseconds, while the Volcengine address black-holes for the full timeout.
 func detectPlatform(ctx context.Context) (string, error) {
 	logger := log.WithFunc("cmd.detectPlatform")
-
-	type result struct {
-		name string
-		ok   bool
+	if gke.Detect(ctx) {
+		logger.Infof(ctx, "detected platform: %s", platform.PlatformGKE)
+		return platform.PlatformGKE, nil
 	}
-	ch := make(chan result, 2)
-	go func() { ch <- result{platform.PlatformGKE, gke.Detect(ctx)} }()
-	go func() { ch <- result{platform.PlatformVolcengine, volcengine.Detect(ctx)} }()
-
-	var hits []string
-	for range 2 {
-		if r := <-ch; r.ok {
-			hits = append(hits, r.name)
-		}
+	if volcengine.Detect(ctx) {
+		logger.Infof(ctx, "detected platform: %s", platform.PlatformVolcengine)
+		return platform.PlatformVolcengine, nil
 	}
-	switch len(hits) {
-	case 0:
-		return "", errors.New("platform auto-detection failed: no metadata endpoint responded; pass --platform gke|volcengine")
-	case 1:
-		logger.Infof(ctx, "detected platform: %s", hits[0])
-		return hits[0], nil
-	default:
-		return "", fmt.Errorf("platform auto-detection ambiguous: %v both responded; pass --platform to disambiguate", hits)
-	}
+	return "", errors.New("platform auto-detection failed: no metadata endpoint responded; pass --platform gke|volcengine")
 }
