@@ -15,20 +15,9 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {
-		var staleIP net.IP
-		ip, staleIP = s.offers.ipForMAC(mac)
-		if staleIP != nil {
-			s.pool.release(staleIP)
-		}
-		if ip == nil {
-			ip = s.pool.allocate()
-			if ip == nil {
-				logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
-				return
-			}
-		}
-		if oldIP := s.offers.add(mac, ip); oldIP != nil {
-			s.pool.release(oldIP)
+		if ip = s.offerIP(mac); ip == nil {
+			logger.Warnf(ctx, "DISCOVER from %s: pool exhausted", mac)
+			return
 		}
 	}
 
@@ -43,4 +32,21 @@ func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer n
 		return
 	}
 	logger.Infof(ctx, "OFFER %s -> %s", ip, mac)
+}
+
+// offerIP refreshes mac's live offer or allocates a new one; nil means the pool is exhausted.
+func (s *Server) offerIP(mac net.HardwareAddr) net.IP {
+	ip, staleIP := s.offers.ipForMAC(mac)
+	if staleIP != nil {
+		s.pool.release(staleIP)
+	}
+	if ip == nil {
+		if ip = s.pool.allocate(); ip == nil {
+			return nil
+		}
+	}
+	if oldIP := s.offers.add(mac, ip); oldIP != nil {
+		s.pool.release(oldIP)
+	}
+	return ip
 }
