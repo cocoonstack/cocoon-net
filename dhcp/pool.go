@@ -47,13 +47,19 @@ func (p *ipPool) release(ip net.IP) {
 	p.free[k] = v4
 }
 
-func (p *ipPool) markUsed(ip net.IP) {
+// markUsed reports false for an IP the pool was never configured with.
+func (p *ipPool) markUsed(ip net.IP) bool {
 	v4 := ip.To4()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	k := ipKey(v4)
+	if _, ok := p.free[k]; !ok {
+		_, ok = p.used[k]
+		return ok
+	}
 	delete(p.free, k)
 	p.used[k] = struct{}{}
+	return true
 }
 
 // tryClaim moves ip from free to used under p.mu, so two concurrent REQUESTs for the same free IP cannot both win.

@@ -11,7 +11,11 @@ func (s *Server) restoreLeases(ctx context.Context) {
 	logger := log.WithFunc("dhcp.restoreLeases")
 	active := s.leases.activeLeases()
 	for _, l := range active {
-		s.pool.markUsed(l.IP)
+		if !s.pool.markUsed(l.IP) {
+			s.leases.take(l.MAC)
+			logger.Warnf(ctx, "dropped lease %s <- %s: outside the pool", l.IP, l.MAC)
+			continue
+		}
 		if err := addRouteFn(l.IP, s.linkIndex); err != nil {
 			logger.Errorf(ctx, err, "restore route %s", l.IP)
 		}
