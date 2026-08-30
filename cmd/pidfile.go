@@ -21,11 +21,15 @@ func acquirePIDFile() error {
 	if err := os.MkdirAll(filepath.Dir(pidFile), pidDirPerm); err != nil {
 		return fmt.Errorf("create pid dir: %w", err)
 	}
+	tmp := fmt.Sprintf("%s.%d", pidFile, os.Getpid())
+	if err := os.WriteFile(tmp, []byte(strconv.Itoa(os.Getpid())), pidFilePerm); err != nil {
+		return fmt.Errorf("write pid file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmp) }()
 	for range 2 {
-		f, err := os.OpenFile(pidFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, pidFilePerm)
+		err := os.Link(tmp, pidFile)
 		if err == nil {
-			_, err = f.WriteString(strconv.Itoa(os.Getpid()))
-			return errors.Join(err, f.Close())
+			return nil
 		}
 		if !errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("create pid file: %w", err)
