@@ -22,7 +22,6 @@ func TestState_SaveLoadRoundtrip(t *testing.T) {
 		SecondaryNICs:  []string{"eth1", "eth2"},
 		IPs:            []string{"10.0.0.10", "10.0.0.11"},
 		ENIIDs:         []string{"eni-1"},
-		SubnetID:       "subnet-x",
 		AliasRangeName: "cocoon-pods",
 		DNSServers:     []string{"8.8.8.8"},
 	}

@@ -6,17 +6,15 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/cocoonstack/cocoon-common/httpx"
 )
 
 const (
-	leasePathPrefix        = "/v1/leases/"
+	leasePattern           = "DELETE /v1/leases/{mac}"
 	controlShutdownTimeout = 5 * time.Second
 )
 
@@ -54,10 +52,8 @@ func newControlServer(socketPath string, srv *Server) (*controlServer, error) {
 		return nil, fmt.Errorf("chmod socket: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc(leasePathPrefix, srv.handleLeaseControl)
 	return &controlServer{
-		server:     httpx.NewServer("", mux),
+		server:     httpx.NewServer("", newControlMux(srv)),
 		listener:   listener,
 		socketPath: socketPath,
 	}, nil
@@ -76,17 +72,7 @@ func (s *controlServer) serve(ctx context.Context) <-chan error {
 }
 
 func (s *Server) handleLeaseControl(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		w.Header().Set("Allow", http.MethodDelete)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	rawMAC, err := url.PathUnescape(strings.TrimPrefix(r.URL.Path, leasePathPrefix))
-	if err != nil {
-		http.Error(w, "invalid MAC address", http.StatusBadRequest)
-		return
-	}
-	mac, err := net.ParseMAC(rawMAC)
+	mac, err := net.ParseMAC(r.PathValue("mac"))
 	if err != nil {
 		http.Error(w, "invalid MAC address", http.StatusBadRequest)
 		return
@@ -96,4 +82,10 @@ func (s *Server) handleLeaseControl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func newControlMux(srv *Server) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc(leasePattern, srv.handleLeaseControl)
+	return mux
 }

@@ -31,14 +31,13 @@ func (s *Server) restoreLeases(ctx context.Context) {
 
 func (s *Server) cleanupLoop(ctx context.Context) {
 	logger := log.WithFunc("dhcp.cleanupLoop")
-	ticker := time.NewTicker(leaseCleanupInterval)
-	defer ticker.Stop()
+	tick := time.Tick(leaseCleanupInterval)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-tick:
 			s.lifecycleMu.Lock()
 			for _, ip := range s.offers.expireOld() {
 				s.pool.release(ip)

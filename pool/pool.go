@@ -36,7 +36,6 @@ type State struct {
 	SecondaryNICs []string `json:"secondaryNICs,omitempty"`
 	IPs           []string `json:"ips"`
 	ENIIDs        []string `json:"eniIDs,omitempty"`
-	SubnetID      string   `json:"subnetID,omitempty"`
 
 	// AliasRangeName is the GCE secondary range (GKE only); empty makes teardown use the default.
 	AliasRangeName string `json:"aliasRangeName,omitempty"`
