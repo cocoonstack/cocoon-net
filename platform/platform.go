@@ -84,17 +84,19 @@ func DefaultNIC(platformName string) string {
 	}
 }
 
-// DefaultSecondaryNICs returns the expected secondary NIC names for a platform.
-// GKE has no secondary NICs; Volcengine uses eth1..eth7 for ENIs.
+// DefaultSecondaryNICs returns eth1..eth7 for Volcengine; nil elsewhere.
 func DefaultSecondaryNICs(platformName string) []string {
-	switch platformName {
-	case PlatformVolcengine:
-		nics := make([]string, volcengineSecondaryNICCount)
-		for i := range nics {
-			nics[i] = fmt.Sprintf("eth%d", i+1)
-		}
-		return nics
-	default:
-		return nil
+	if platformName == PlatformVolcengine {
+		return SecondaryNICNames(volcengineSecondaryNICCount)
 	}
+	return nil
+}
+
+// SecondaryNICNames returns eth1..ethN, the kernel names of N attached ENIs.
+func SecondaryNICNames(n int) []string {
+	nics := make([]string, n)
+	for i := range nics {
+		nics[i] = fmt.Sprintf("eth%d", i+1)
+	}
+	return nics
 }

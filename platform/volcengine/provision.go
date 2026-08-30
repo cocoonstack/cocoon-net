@@ -68,13 +68,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
-	// A down secondary NIC makes its assigned IPs unreachable, so fail fast rather than pool dead addresses.
-	secondaryNICs := platform.DefaultSecondaryNICs(v.Name())
-	for _, iface := range secondaryNICs {
-		if linkErr := bringLinkUp(iface); linkErr != nil {
-			return nil, fmt.Errorf("bring up %s: %w", iface, linkErr)
-		}
-	}
+	secondaryNICs := platform.SecondaryNICNames(len(enis))
 
 	gateway := cfg.Gateway
 	if gateway == "" {
