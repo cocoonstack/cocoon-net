@@ -12,6 +12,10 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.WriteFile(tmp, data, perm); err != nil {
 		return fmt.Errorf("write %s: %w", tmp, err)
 	}
+	// WriteFile applies perm only on create; a leftover tmp or the umask would otherwise leak through
+	if err := os.Chmod(tmp, perm); err != nil {
+		return fmt.Errorf("chmod %s: %w", tmp, err)
+	}
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("rename %s: %w", tmp, err)
