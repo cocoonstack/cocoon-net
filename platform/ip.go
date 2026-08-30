@@ -67,7 +67,7 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 		return nil, fmt.Errorf("gateway %s is not IPv4", gateway)
 	}
 
-	// Broadcast = network | ~mask; computed so we can skip it during iteration.
+	// broadcast = network | ~mask, computed so the loop can skip it
 	netAddr := prefix.Masked().Addr().As4()
 	bits := prefix.Bits()
 	hostBits := uint32(32 - bits) //nolint:gosec // bits ∈ [0,32] from ParsePrefix

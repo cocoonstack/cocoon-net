@@ -31,8 +31,9 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 
 // freeIP deletes the /32 first: a DISCOVER may claim the IP the moment it is back in the pool, and a late route delete would black-hole it.
 func (s *Server) freeIP(ctx context.Context, ip net.IP) {
+	logger := log.WithFunc("dhcp.freeIP")
 	if err := delRouteFn(ip, s.linkIndex); err != nil {
-		log.WithFunc("dhcp.freeIP").Errorf(ctx, err, "del route %s", ip)
+		logger.Errorf(ctx, err, "del route %s", ip)
 	}
 	s.pool.release(ip)
 }

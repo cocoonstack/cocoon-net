@@ -18,7 +18,7 @@ func TestHandleRequestRecordsOK(t *testing.T) {
 	srv, conn, peer := newTestServer(t)
 	defer conn.Close()
 
-	// Stub the netlink route add so the ACK path is reachable off-Linux.
+	// stub the netlink route add so the ACK path is reachable off-Linux
 	orig := addRouteFn
 	addRouteFn = func(net.IP, int) error { return nil }
 	defer func() { addRouteFn = orig }()
