@@ -57,7 +57,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
 	secondaryNICCandidates := platform.DefaultSecondaryNICs(platformName)
 	secondaryNICs := node.PresentLinks(secondaryNICCandidates)
-	if platformName == platform.PlatformVolcengine && len(secondaryNICs) == 0 {
+	if len(secondaryNICCandidates) > 0 && len(secondaryNICs) == 0 {
 		return fmt.Errorf("no secondary NIC found; expected one of %s", strings.Join(secondaryNICCandidates, ", "))
 	}
 
