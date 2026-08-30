@@ -18,7 +18,13 @@
     "172.20.100.3"
   ],
   "eniIDs": [
-    "eni-xxx"
+    "eni-1xxx",
+    "eni-2xxx",
+    "eni-3xxx",
+    "eni-4xxx",
+    "eni-5xxx",
+    "eni-6xxx",
+    "eni-7xxx"
   ],
   "dnsServers": [
     "8.8.8.8",

@@ -21,16 +21,18 @@ pool.json  <----------        |
                          On release: del /32 route
 ```
 
-**Two-phase operation**: `cocoon-net init` (or `adopt`) does one-time cloud
-provisioning and state persistence; `cocoon-net daemon` is the long-running
-service that sets up node networking, serves DHCP, and manages routes.
+**Two-phase operation**: `cocoon-net init` does one-time cloud provisioning
+and state persistence, while `adopt` registers a node whose cloud side was
+provisioned by hand and calls no cloud API; `cocoon-net daemon` is the
+long-running service that sets up node networking, serves DHCP, and manages
+routes.
 Full details in [Architecture](docs/architecture.md).
 
 ## Supported platforms
 
 | Platform | Mechanism | Max IPs/node |
 |---|---|---|
-| GKE | VPC alias IP ranges (`gcloud`) | ~254 |
+| GKE | VPC alias IP ranges (`gcloud`) | 253 |
 | Volcengine | Dedicated subnet + secondary ENI IPs (`ve` CLI) | 140 (7 ENIs x 20) |
 
 ## Quick start

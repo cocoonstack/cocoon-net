@@ -19,9 +19,10 @@ pool.json  <----------        |
                          On release: del /32 route
 ```
 
-1. `cocoon-net init` (or `adopt`) -- provisions cloud networking resources
-   (GKE alias IPs or Volcengine secondary ENI IPs), configures the node, and
-   persists the result to `pool.json`.
+1. `cocoon-net init` -- provisions cloud networking resources (GKE alias IPs
+   or Volcengine secondary ENI IPs), configures the node, and persists the
+   result to `pool.json`. `adopt` is the same step for a node provisioned by
+   hand: it configures and persists, but calls no cloud API.
 2. `cocoon-net daemon` -- long-running service: re-applies node setup, then
    starts the [embedded DHCP server](dhcp.md) that hands out pool IPs and
    manages dynamic host routes.
@@ -47,7 +48,7 @@ running on.
 
 | Platform | Mechanism | Max IPs/node |
 |---|---|---|
-| GKE | VPC alias IP ranges (`gcloud`) | ~254 |
+| GKE | VPC alias IP ranges (`gcloud`) | 253 |
 | Volcengine | Dedicated subnet + secondary ENI IPs (`ve` CLI) | 140 (7 ENIs x 20) |
 
 Platform-specific setup, prerequisites, and troubleshooting:
@@ -61,7 +62,8 @@ Platform-specific setup, prerequisites, and troubleshooting:
 
 ## CNI integration
 
-Both `init` and `adopt` write `/etc/cni/net.d/30-cocoon-dhcp.conflist`:
+`init`, `adopt`, and `daemon` all write
+`/etc/cni/net.d/30-cocoon-dhcp.conflist` as part of node setup:
 
 ```json
 {

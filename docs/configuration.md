@@ -1,7 +1,7 @@
 # Configuration
 
-cocoon-net is configured through command-line flags plus one environment
-variable; runtime state (what was provisioned, and for whom) lives in
+cocoon-net is configured through command-line flags plus the environment
+variables below; runtime state (what was provisioned, and for whom) lives in
 `pool.json`.
 
 ## Flags
@@ -11,7 +11,7 @@ variable; runtime state (what was provisioned, and for whom) lives in
 | `--platform` | auto-detect | Cloud platform (`gke` or `volcengine`); auto-detected from instance metadata if omitted |
 | `--node-name` | (required) | Virtual node name |
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
-| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool |
+| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and by `adopt`, ignored by Volcengine `init` (always 7 ENIs x 20 IPs) |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
 | `--primary-nic` | auto-detect | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
@@ -72,11 +72,11 @@ Example file: [docs/pool-example.json](pool-example.json).
 | `gateway` | Gateway IP on `cni0` |
 | `primaryNIC` | Host primary NIC |
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
-| `ips` | Allocatable DHCP pool (excludes the gateway) |
+| `ips` | Allocatable DHCP pool (excludes the gateway on GKE and `adopt`; on Volcengine it is the secondary IPs the ENIs report) |
 | `eniIDs` | Volcengine only: the ENIs `init` recorded; `teardown` deletes exactly these |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |
-| `dropInternalAccess`, `dropCIDRs` | Mirrors `--drop-internal-access` / `--drop-cidr`, reapplied by the daemon on every start |
+| `dropInternalAccess`, `dropCIDRs` | Mirrors `--drop-internal-access` / `--drop-cidr`, reapplied by the daemon on every start unless `--skip-iptables` is set |
 | `updatedAt` | Last write time (UTC) |
 
 ## Credentials

@@ -248,7 +248,7 @@ ve vpc AuthorizeSecurityGroupIngress \
 | ENI configuration | N/A (single NIC) | 7 secondary ENIs, `ip link set up` |
 | IP config on secondary NIC | N/A | Not needed (just UP) |
 | Guest agent workaround | Yes (route hijack fix) | Not needed |
-| Max IPs per node | ~254 (alias /24) | 140 (7 × 20) |
+| Max IPs per node | 253 (alias /24) | 140 (7 × 20) |
 | Cross-host latency | ~0.3ms | ~0.3ms |
 | Security group | Default allows VPC | Must explicitly allow VPC internal |
 

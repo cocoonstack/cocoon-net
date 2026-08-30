@@ -9,7 +9,9 @@ VPC-routable IP directly from this server.
 ## Lease lifecycle
 
 - The pool of allocatable IPs comes from `pool.json` (the addresses the
-  platform provisioner assigned at `init`/`adopt` time), minus the gateway.
+  platform provisioner assigned at `init`/`adopt` time). GKE `init` and `adopt`
+  derive it from the subnet minus the gateway; Volcengine `init` uses whatever
+  secondary IPs its ENIs report.
 - Default lease time is 24 hours; expired leases are swept every minute.
 - A DHCPOFFER reserves an IP for 60 seconds; if no matching DHCPREQUEST
   arrives in that window, the IP is returned to the free pool.
@@ -28,13 +30,14 @@ VPC-routable IP directly from this server.
 ### Lease file format
 
 The file is a JSON array, rewritten atomically (temp file + rename, `0644`),
-so a reader either sees the previous complete file or the new one:
+so a reader either sees the previous complete file or the new one. With no live
+leases it is written as `null` rather than `[]`, so decode into a slice:
 
 ```json
 [
   {
     "mac": "aa:bb:cc:dd:ee:01",
-    "ip": "10.148.0.37",
+    "ip": "172.20.100.37",
     "expiry": "2026-08-11T09:30:00Z"
   }
 ]
