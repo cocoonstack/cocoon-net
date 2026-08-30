@@ -41,7 +41,6 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				logger.Infof(ctx, "reclaimed abandoned offer %s", ip)
 			}
 
-			// delRoute before release: a concurrent DISCOVER could otherwise claim the freed IP and our late delRoute would black-hole it.
 			expired := s.leases.expireOld()
 			if len(expired) > 0 {
 				if err := s.leases.save(); err != nil {
@@ -52,10 +51,7 @@ func (s *Server) cleanupLoop(ctx context.Context) {
 				}
 			}
 			for _, l := range expired {
-				if err := delRouteFn(l.IP, s.linkIndex); err != nil {
-					logger.Errorf(ctx, err, "del expired route %s", l.IP)
-				}
-				s.pool.release(l.IP)
+				s.freeIP(ctx, l.IP)
 				logger.Infof(ctx, "expired lease %s <- %s", l.IP, l.MAC)
 			}
 			s.lifecycleMu.Unlock()

@@ -27,14 +27,17 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 		s.leases.restore(l)
 		return true, fmt.Errorf("persist leases: %w", err)
 	}
-	// delRoute before release: a concurrent DISCOVER may claim the IP as soon
-	// as it returns to the pool, and a late route delete would black-hole it.
-	if err := delRouteFn(l.IP, s.linkIndex); err != nil {
-		logger.Errorf(ctx, err, "del route %s", l.IP)
-	}
-	s.pool.release(l.IP)
+	s.freeIP(ctx, l.IP)
 	logger.Infof(ctx, "RELEASE %s <- %s", l.IP, mac)
 	return true, nil
+}
+
+// freeIP deletes the /32 first: a DISCOVER may claim the IP the moment it is back in the pool, and a late route delete would black-hole it.
+func (s *Server) freeIP(ctx context.Context, ip net.IP) {
+	if err := delRouteFn(ip, s.linkIndex); err != nil {
+		log.WithFunc("dhcp.freeIP").Errorf(ctx, err, "del route %s", ip)
+	}
+	s.pool.release(ip)
 }
 
 func (s *Server) handleRelease(ctx context.Context, mac net.HardwareAddr) {

@@ -66,10 +66,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	}
 	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
 		if e.MAC == mac.String() {
-			if err := delRouteFn(e.IP, s.linkIndex); err != nil {
-				logger.Errorf(ctx, err, "del orphan route %s after %s rebind to %s", e.IP, mac, reqIP)
-			}
-			s.pool.release(e.IP)
+			s.freeIP(ctx, e.IP)
 			logger.Warnf(ctx, "rebound %s from %s to %s; released old IP", mac, e.IP, reqIP)
 			continue
 		}
