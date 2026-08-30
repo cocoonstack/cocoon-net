@@ -3,30 +3,14 @@ package gke
 import (
 	"context"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
+
+	"github.com/cocoonstack/cocoon-net/platform"
 )
 
 func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string, err error) {
-	client := &http.Client{Timeout: metadataTimeout}
-
 	fetch := func(path string) (string, error) {
-		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, metaBase+path, nil)
-		if reqErr != nil {
-			return "", reqErr
-		}
-		req.Header.Set("Metadata-Flavor", "Google")
-		resp, doErr := client.Do(req)
-		if doErr != nil {
-			return "", doErr
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusOK {
-			return "", fmt.Errorf("metadata %s: status %d", path, resp.StatusCode)
-		}
-		b, readErr := io.ReadAll(resp.Body)
-		return strings.TrimSpace(string(b)), readErr
+		return platform.FetchMetadata(ctx, metaBase+path, metadataHeaders, metadataTimeout)
 	}
 
 	instance, err = fetch("/instance/name")
