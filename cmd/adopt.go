@@ -42,13 +42,9 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	}
 	dnsServers := splitTrim(flagDNS, ",")
 
-	gateway := flagGateway
-	if gateway == "" {
-		gw, err := platform.FirstHostIP(flagSubnet)
-		if err != nil {
-			return fmt.Errorf("compute default gateway from %s: %w", flagSubnet, err)
-		}
-		gateway = gw
+	gateway, err := platform.ResolveGateway(flagGateway, flagSubnet)
+	if err != nil {
+		return fmt.Errorf("compute gateway: %w", err)
 	}
 
 	ips, err := platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)

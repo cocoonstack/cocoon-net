@@ -42,6 +42,14 @@ func FirstHostIP(cidr string) (string, error) {
 	return first.String(), nil
 }
 
+// ResolveGateway returns gateway, or the first host IP of cidr when it is empty.
+func ResolveGateway(gateway, cidr string) (string, error) {
+	if gateway != "" {
+		return gateway, nil
+	}
+	return FirstHostIP(cidr)
+}
+
 // SubnetIPs returns up to count host IPs from the subnet, skipping the gateway
 // and the broadcast address; an empty or malformed gateway is an error.
 func SubnetIPs(cidr, gateway string, count int) ([]string, error) {

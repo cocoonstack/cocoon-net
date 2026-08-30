@@ -70,12 +70,9 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 
 	secondaryNICs := platform.SecondaryNICNames(len(enis))
 
-	gateway := cfg.Gateway
-	if gateway == "" {
-		gateway, err = platform.FirstHostIP(cfg.SubnetCIDR)
-		if err != nil {
-			return nil, fmt.Errorf("compute gateway: %w", err)
-		}
+	gateway, err := platform.ResolveGateway(cfg.Gateway, cfg.SubnetCIDR)
+	if err != nil {
+		return nil, fmt.Errorf("compute gateway: %w", err)
 	}
 
 	platform.SortIPs(allIPs)
