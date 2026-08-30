@@ -4,8 +4,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// PoolState is a point-in-time snapshot of DHCP pool occupancy, read on each
-// scrape so the gauges self-clean when the daemon stops (no stale series).
+// PoolState is a per-scrape snapshot of pool occupancy, so the gauges vanish with the daemon.
 type PoolState struct {
 	Available int
 	Active    int

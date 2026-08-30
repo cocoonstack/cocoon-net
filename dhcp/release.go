@@ -8,8 +8,7 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// ReleaseLease reclaims mac's lease, route, and pool slot. It is idempotent so
-// VM lifecycle callers can safely retry after an uncertain response.
+// ReleaseLease reclaims mac's lease, route and pool slot; idempotent so lifecycle callers can retry.
 func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, error) {
 	logger := log.WithFunc("dhcp.ReleaseLease")
 	s.lifecycleMu.Lock()
@@ -20,9 +19,7 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 		return false, nil
 	}
 
-	// Persist the ownership change before making the IP reusable. If this
-	// fails, restore the in-memory lease and leave the route/pool untouched so
-	// a retry cannot create a duplicate allocation after daemon restart.
+	// persist before freeing the IP; on failure restore the entry so a retry cannot double-allocate after restart
 	if err := s.leases.save(); err != nil {
 		s.leases.restore(l)
 		return true, fmt.Errorf("persist leases: %w", err)

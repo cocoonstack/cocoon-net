@@ -50,8 +50,7 @@ func ResolveGateway(gateway, cidr string) (string, error) {
 	return FirstHostIP(cidr)
 }
 
-// SubnetIPs returns up to count host IPs from the subnet, skipping the gateway
-// and the broadcast address; an empty or malformed gateway is an error.
+// SubnetIPs returns up to count host IPs from cidr, skipping the gateway and broadcast; the gateway must be a valid host address.
 func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {

@@ -32,7 +32,6 @@ const (
 )
 
 var (
-	// fallbackDNSServers covers pre-migration state files without DNSServers.
 	fallbackDNSServers = []string{"8.8.8.8", "1.1.1.1"}
 
 	flagLeaseFile     string

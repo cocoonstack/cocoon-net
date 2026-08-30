@@ -1,6 +1,4 @@
-// Package main is the cocoon-net entry point. cocoon-net is the per-node
-// network daemon: it auto-detects the cloud platform, provisions VM-side
-// networking, and runs an in-cluster DHCP server for the cocoon IP pool.
+// Package main is the cocoon-net per-node network daemon: platform detection, VM networking, and the pool DHCP server.
 package main
 
 import (

@@ -9,9 +9,7 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// RunSubprocess spawns binary with args and returns its combined output.
-// The output is also returned alongside a wrapped error on failure, since
-// callers use it to surface the underlying CLI's diagnostics.
+// RunSubprocess runs binary with args and returns its combined output, also on failure so callers can surface CLI diagnostics.
 func RunSubprocess(ctx context.Context, binary string, args ...string) ([]byte, error) {
 	logger := log.WithFunc("platform.RunSubprocess")
 	logger.Debugf(ctx, "spawn external binary: %s %s", binary, strings.Join(args, " "))

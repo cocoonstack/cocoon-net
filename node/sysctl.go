@@ -12,8 +12,7 @@ import (
 
 const procSysBase = "/proc/sys"
 
-// setupSysctl applies cocoon-net sysctl tuning. Global keys are required;
-// per-interface keys are best-effort (an ENI can be detached out-of-band).
+// setupSysctl requires the global keys and treats per-interface ones as best-effort (an ENI can be detached out-of-band).
 func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string) error {
 	logger := log.WithFunc("node.setupSysctl")
 

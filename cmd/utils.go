@@ -29,8 +29,7 @@ var (
 	flagDropInternal bool
 	flagDropCIDRs    []string
 
-	// flagManageIPTables is the inverse of node.Config.SkipIPTables,
-	// exposed only on adopt (off by default to preserve host rules).
+	// flagManageIPTables inverts node.Config.SkipIPTables; adopt-only, off by default to preserve host rules.
 	flagManageIPTables bool
 )
 
@@ -82,8 +81,7 @@ func nodeConfigFromState(state *pool.State, skipIPTables bool) *node.Config {
 	}
 }
 
-// resolvePlatform fills an empty flagPlatform in place so downstream readers
-// (dry-run output included) see the detected name without re-detecting.
+// resolvePlatform fills flagPlatform in place so dry-run output sees the detected name too.
 func resolvePlatform(ctx context.Context) error {
 	if flagPlatform != "" {
 		return nil

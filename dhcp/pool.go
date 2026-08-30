@@ -6,8 +6,7 @@ import (
 	"sync"
 )
 
-// ipPool tracks which IPs are free or in use. Keys are the 4-byte
-// IPv4 packed into a uint32.
+// ipPool tracks free and used IPs keyed by their big-endian uint32 form.
 type ipPool struct {
 	mu   sync.RWMutex
 	free map[uint32]net.IP

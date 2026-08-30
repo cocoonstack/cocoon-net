@@ -12,7 +12,7 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// loadEnv exports credentials to the process env for the `ve` child; a missing config is not an error, `ve` has its own fallbacks.
+// loadEnv exports credentials for the ve child; a missing config file is fine, ve has its own fallbacks.
 func loadEnv(ctx context.Context) error {
 	logger := log.WithFunc("volcengine.loadEnv")
 

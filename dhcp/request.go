@@ -24,8 +24,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// Record exactly one outcome per grant attempt: default failed, flipped to
-	// ok only once the ACK is on the wire.
+	// one outcome per grant attempt: failed unless the ACK reaches the wire
 	result := "failed"
 	defer func() { metrics.DHCPLeaseTotal.WithLabelValues(result).Inc() }()
 
@@ -51,7 +50,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		return
 	}
 
-	// The /32 route lands before lease state, else the client leases an unreachable IP; RouteReplace is idempotent so re-REQUESTs are safe.
+	// the /32 lands before the lease so the client never leases an unreachable IP; RouteReplace makes re-REQUESTs safe
 	if err := addRouteFn(reqIP, s.linkIndex); err != nil {
 		if !alreadyHeld {
 			s.pool.release(reqIP)

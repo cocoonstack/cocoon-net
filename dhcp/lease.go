@@ -44,7 +44,6 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-// add commits a lease, returning any prior entries it displaced.
 func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -72,9 +71,7 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	return evicted
 }
 
-// take atomically removes and returns the lease for mac. Expired entries are
-// returned too so explicit lifecycle cleanup can reclaim their pool slot
-// without waiting for the periodic expiry pass.
+// take also returns an expired entry so an explicit release reclaims its slot before the sweep.
 func (s *leaseStore) take(mac net.HardwareAddr) *lease {
 	s.mu.Lock()
 	defer s.mu.Unlock()

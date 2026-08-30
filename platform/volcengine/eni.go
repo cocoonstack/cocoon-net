@@ -74,7 +74,7 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 			"--InstanceId", instanceID,
 		)
 		if attachErr != nil {
-			// Best-effort delete to avoid leaking ENI quota; degraded not fatal, keep building the pool.
+			// best-effort delete so one attach failure neither leaks quota nor stalls the pool build
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
 			if _, delErr := runVe(
 				ctx, "vpc", "DeleteNetworkInterface",

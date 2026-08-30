@@ -13,8 +13,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// Only this node's alias is removed; the shared secondary range is
-// operator-owned and preserved (see docs/gke.md).
+// Teardown removes only this node's alias; the shared secondary range is operator-owned (see docs/gke.md).
 func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error {
 	logger := log.WithFunc("gke.Teardown")
 

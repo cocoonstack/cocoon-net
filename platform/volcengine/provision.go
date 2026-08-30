@@ -56,7 +56,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		if shortfall := ipsPerENI - len(existing); shortfall > 0 {
 			ips, assignErr := assignSecondaryIPs(ctx, eni.NetworkInterfaceID, shortfall)
 			if assignErr != nil {
-				// One ENI's failure is tolerable; the len(allIPs)==0 guard below aborts only if every ENI failed.
+				// one ENI failing is tolerable; only the all-failed case below aborts
 				logger.Warnf(ctx, "assign secondary IPs to %s: %v", eni.NetworkInterfaceID, assignErr)
 				continue
 			}

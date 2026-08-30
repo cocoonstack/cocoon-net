@@ -90,8 +90,7 @@ func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	}
 }
 
-// An expired other-MAC entry must NOT be reported as eviction — that
-// would trigger spurious delRoute traffic from the caller.
+// an expired other-MAC entry must be evicted or the sweep reclaims the live holder's IP
 func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	t.Parallel()
 

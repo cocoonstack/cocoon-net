@@ -1,5 +1,4 @@
-// Package node configures node-local networking: CNI conflist, sysctls, and
-// (optional) bridge / iptables setup for the cocoon DHCP pool.
+// Package node configures node-local networking: secondary NICs, bridge, sysctls, iptables, and the CNI conflist.
 package node
 
 import (
@@ -33,19 +32,14 @@ type Config struct {
 	// SkipIPTables omits the iptables FORWARD + NAT MASQUERADE rules.
 	SkipIPTables bool
 
-	// DropInternalAccess adds a FORWARD DROP for SubnetCIDR. Same-node VM-to-VM is
-	// isolated at L2 by portIsolation instead; use DropCIDRs for cross-node.
-	// Ignored when SkipIPTables is set.
+	// DropInternalAccess adds a FORWARD DROP for SubnetCIDR (cross-node; same-node isolation is L2 portIsolation).
 	DropInternalAccess bool
 
-	// DropCIDRs lists additional external destination CIDRs VM traffic is
-	// blocked from reaching (e.g. management ranges). Same enforcement and
-	// SkipIPTables gating as DropInternalAccess.
+	// DropCIDRs adds FORWARD DROPs for extra destination CIDRs; ignored with SkipIPTables like DropInternalAccess.
 	DropCIDRs []string
 }
 
-// Setup configures host networking components (idempotent).
-// Order matters: cni0 bridge must exist before sysctl sets per-interface params.
+// Setup configures host networking idempotently; the bridge must exist before sysctl touches it.
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 

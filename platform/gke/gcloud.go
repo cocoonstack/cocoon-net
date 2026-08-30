@@ -30,16 +30,12 @@ func (a aliasEntry) String() string {
 	return a.RangeName + ":" + a.IPCIDRRange
 }
 
-// runGcloud executes the `gcloud` CLI. Every invocation is a tech-debt
-// hotspot documented at package level — see gke.go.
+// runGcloud shells out to the gcloud CLI; tracked as tech debt in the package doc.
 func runGcloud(ctx context.Context, args ...string) ([]byte, error) {
 	return platform.RunSubprocess(ctx, "gcloud", args...)
 }
 
-// ensureSecondaryRange guarantees that the named secondary range on the GCE
-// subnet covers cidr. An existing range that is a superset is reused; one
-// that does not cover cidr produces an up-front error; a missing range is
-// created at cidr (single-node cold-start path; see docs/gke.md).
+// ensureSecondaryRange reuses a range covering cidr, errors on one that does not, and creates it at cidr when absent (see docs/gke.md).
 func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr string) error {
 	logger := log.WithFunc("gke.ensureSecondaryRange")
 
@@ -79,8 +75,7 @@ func ensureSecondaryRange(ctx context.Context, project, region, subnet, cidr str
 	return nil
 }
 
-// describeSecondaryRange returns the CIDR of the named secondary range on the
-// GCE subnet, or "" if no range with that name exists.
+// describeSecondaryRange returns the named range's CIDR, or "" when absent.
 func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeName string) (string, error) {
 	out, err := runGcloud(
 		ctx,
@@ -108,9 +103,7 @@ func describeSecondaryRange(ctx context.Context, project, region, subnet, rangeN
 	return "", nil
 }
 
-// assignAliasIP merges our alias into nic0 via read-modify-write
-// (gcloud --aliases is a full replacement). No-op if our exact entry
-// is already present; stale entries under our range name are replaced.
+// assignAliasIP read-modify-writes nic0's alias list, since gcloud --aliases is a full replacement.
 func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) error {
 	logger := log.WithFunc("gke.assignAliasIP")
 
@@ -151,8 +144,7 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 	return nil
 }
 
-// describeNic0Aliases returns the alias IP ranges currently bound to nic0
-// on the given instance; errors if nic0 is absent from the describe output.
+// describeNic0Aliases returns nic0's alias IP ranges; an instance without nic0 is an error.
 func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([]aliasEntry, error) {
 	out, err := runGcloud(
 		ctx,
@@ -180,9 +172,7 @@ func describeNic0Aliases(ctx context.Context, project, zone, instance string) ([
 	return nil, fmt.Errorf("%s not found on instance %s", nic0Name, instance)
 }
 
-// fixGuestAgentRoute deletes the local route the GCE guest agent auto-installs
-// for alias ranges (it would black-hole VM return traffic) and persists a boot
-// cron to re-apply it — the cron shells out to `ip route` since it runs before the daemon.
+// fixGuestAgentRoute removes the guest agent's local alias route, which black-holes VM return traffic, and reinstalls the fix via a boot cron.
 func fixGuestAgentRoute(ctx context.Context, nic, cidr string) error {
 	logger := log.WithFunc("gke.fixGuestAgentRoute")
 

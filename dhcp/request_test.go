@@ -12,8 +12,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
-// These tests share the global DHCPLeaseTotal counter and the addRouteFn stub,
-// so they run sequentially (no t.Parallel) and assert on before/after deltas.
+// these tests share the global DHCPLeaseTotal counter and the addRouteFn stub, so no t.Parallel; assertions use deltas
 
 func TestHandleRequestRecordsOK(t *testing.T) {
 	srv, conn, peer := newTestServer(t)

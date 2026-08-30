@@ -22,8 +22,7 @@ func fetchMetadata(ctx context.Context) (instance, zone, project, subnet string,
 	if err != nil {
 		return "", "", "", "", fmt.Errorf("fetch zone: %w", err)
 	}
-	// zoneURL is "projects/PROJECT_NUMBER/zones/ZONE"; the numeric segment is
-	// not the project ID gcloud accepts, so the ID is fetched separately below.
+	// the numeric project segment in zoneURL is not the project ID gcloud wants, so it is fetched separately
 	parts := strings.Split(zoneURL, "/")
 	zone = parts[len(parts)-1]
 
