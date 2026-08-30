@@ -24,14 +24,9 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runStatus")
 
-	state, err := loadPoolState(ctx)
+	state, plat, err := loadPlatformFromState(ctx)
 	if err != nil {
 		return err
-	}
-
-	plat, err := newPlatform(ctx, state.Platform)
-	if err != nil {
-		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}
 
 	status, err := plat.Status(ctx)

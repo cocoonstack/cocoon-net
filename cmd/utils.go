@@ -9,6 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cocoonstack/cocoon-net/node"
+	"github.com/cocoonstack/cocoon-net/platform"
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
@@ -54,6 +56,30 @@ func loadPoolState(ctx context.Context) (*pool.State, error) {
 		return nil, fmt.Errorf("load pool state: %w (run 'cocoon-net init' first)", err)
 	}
 	return state, nil
+}
+
+func loadPlatformFromState(ctx context.Context) (*pool.State, platform.CloudPlatform, error) {
+	state, err := loadPoolState(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	plat, err := newPlatform(ctx, state.Platform)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load platform %s: %w", state.Platform, err)
+	}
+	return state, plat, nil
+}
+
+func nodeConfigFromState(state *pool.State, skipIPTables bool) *node.Config {
+	return &node.Config{
+		Gateway:            state.Gateway,
+		SubnetCIDR:         state.Subnet,
+		PrimaryNIC:         state.PrimaryNIC,
+		SecondaryNICs:      state.SecondaryNICs,
+		SkipIPTables:       skipIPTables,
+		DropInternalAccess: state.DropInternalAccess,
+		DropCIDRs:          state.DropCIDRs,
+	}
 }
 
 // resolvePlatform fills an empty flagPlatform in place so downstream readers

@@ -33,7 +33,7 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	logger := log.WithFunc("cmd.runTeardown")
 
-	state, err := loadPoolState(ctx)
+	state, plat, err := loadPlatformFromState(ctx)
 	if err != nil {
 		return err
 	}
@@ -42,11 +42,6 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("[dry-run] would teardown %s networking for node %s (subnet %s)\n",
 			state.Platform, state.NodeName, state.Subnet)
 		return nil
-	}
-
-	plat, err := newPlatform(ctx, state.Platform)
-	if err != nil {
-		return fmt.Errorf("load platform %s: %w", state.Platform, err)
 	}
 
 	td := &platform.TeardownConfig{

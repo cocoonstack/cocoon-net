@@ -79,19 +79,8 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	}
 	logger.Infof(ctx, "pool loaded: %d IPs, subnet %s, gateway %s", len(state.IPs), state.Subnet, state.Gateway)
 
-	primaryNIC := state.PrimaryNIC
-	if primaryNIC == "" {
-		primaryNIC = platform.DefaultNIC(state.Platform)
-	}
-	if setupErr := node.Setup(ctx, &node.Config{
-		Gateway:            state.Gateway,
-		SubnetCIDR:         state.Subnet,
-		PrimaryNIC:         primaryNIC,
-		SecondaryNICs:      state.SecondaryNICs,
-		SkipIPTables:       flagSkipIPTables,
-		DropInternalAccess: state.DropInternalAccess,
-		DropCIDRs:          state.DropCIDRs,
-	}); setupErr != nil {
+	state.PrimaryNIC = cmp.Or(state.PrimaryNIC, platform.DefaultNIC(state.Platform))
+	if setupErr := node.Setup(ctx, nodeConfigFromState(state, flagSkipIPTables)); setupErr != nil {
 		return fmt.Errorf("node setup: %w", setupErr)
 	}
 
