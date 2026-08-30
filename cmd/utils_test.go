@@ -36,3 +36,28 @@ func TestSplitTrim(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveSubnet(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    string
+		wantErr bool
+	}{
+		{"host bits masked", "172.20.100.5/24", "172.20.100.0/24", false},
+		{"already canonical", "10.0.0.0/8", "10.0.0.0/8", false},
+		{"invalid", "not-a-cidr", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flagSubnet = tt.in
+			err := resolveSubnet()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("resolveSubnet(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if !tt.wantErr && flagSubnet != tt.want {
+				t.Errorf("flagSubnet = %q, want %q", flagSubnet, tt.want)
+			}
+		})
+	}
+}

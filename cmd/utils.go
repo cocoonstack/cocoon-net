@@ -70,6 +70,16 @@ func resolvePlatform(ctx context.Context) error {
 	return nil
 }
 
+// resolveSubnet masks flagSubnet in place so the persisted CIDR matches what the cloud reports back at teardown.
+func resolveSubnet() error {
+	_, ipNet, err := net.ParseCIDR(flagSubnet)
+	if err != nil {
+		return fmt.Errorf("parse --subnet %q: %w", flagSubnet, err)
+	}
+	flagSubnet = ipNet.String()
+	return nil
+}
+
 func splitTrim(s, sep string) []string {
 	parts := strings.Split(s, sep)
 	for i := range parts {

@@ -37,6 +37,9 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err := resolvePlatform(ctx); err != nil {
 		return err
 	}
+	if err := resolveSubnet(); err != nil {
+		return err
+	}
 	dnsServers := splitTrim(flagDNS, ",")
 
 	gateway := flagGateway
