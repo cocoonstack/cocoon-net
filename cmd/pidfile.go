@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -16,16 +18,27 @@ const (
 )
 
 func acquirePIDFile() error {
-	if err := checkExistingPID(); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(filepath.Dir(pidFile), pidDirPerm); err != nil {
 		return fmt.Errorf("create pid dir: %w", err)
 	}
-	return os.WriteFile(pidFile, []byte(strconv.Itoa(os.Getpid())), pidFilePerm)
+	for range 2 {
+		f, err := os.OpenFile(pidFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, pidFilePerm)
+		if err == nil {
+			_, err = f.WriteString(strconv.Itoa(os.Getpid()))
+			return errors.Join(err, f.Close())
+		}
+		if !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("create pid file: %w", err)
+		}
+		if err := checkExistingPID(); err != nil {
+			return err
+		}
+		_ = os.Remove(pidFile)
+	}
+	return fmt.Errorf("create pid file: %w", fs.ErrExist)
 }
 
-// A missing, corrupt, or stale (process dead) PID file is safe to overwrite.
+// a missing, corrupt, or stale (process dead) PID file is safe to overwrite
 func checkExistingPID() error {
 	data, err := os.ReadFile(pidFile)
 	if err != nil {
