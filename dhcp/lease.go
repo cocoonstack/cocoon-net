@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/cocoonstack/cocoon-net/utils"
 )
 
 const leaseFilePerm = 0o644
@@ -176,29 +177,9 @@ func (s *leaseStore) save() error {
 	if err != nil {
 		return fmt.Errorf("marshal leases: %w", err)
 	}
-	// Unique temp file per call: save() holds only RLock, so savers sharing a fixed temp path would interleave O_TRUNC writes and rename a corrupt leases.json.
-	tmp, err := os.CreateTemp(filepath.Dir(s.filePath), "leases-*.json")
-	if err != nil {
-		return fmt.Errorf("create leases tmp: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("write leases tmp: %w", err)
-	}
-	if err := tmp.Chmod(leaseFilePerm); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("chmod leases tmp: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("close leases tmp: %w", err)
-	}
-	if err := os.Rename(tmpPath, s.filePath); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("rename leases: %w", err)
+	// every caller holds lifecycleMu, so the fixed tmp path has a single writer
+	if err := utils.WriteFileAtomic(s.filePath, data, leaseFilePerm); err != nil {
+		return fmt.Errorf("save leases: %w", err)
 	}
 	return nil
 }

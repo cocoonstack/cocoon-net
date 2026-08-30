@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/utils"
 )
 
 const (
@@ -68,13 +70,8 @@ func (s *State) Save(ctx context.Context) error {
 	}
 
 	path := filepath.Join(s.StateDir, poolFileName)
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, filePerm); err != nil { //nolint:gosec // not sensitive
-		return fmt.Errorf("write pool state tmp: %w", err)
-	}
-	if err := os.Rename(tmp, path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("rename pool state: %w", err)
+	if err := utils.WriteFileAtomic(path, data, filePerm); err != nil {
+		return fmt.Errorf("save pool state: %w", err)
 	}
 	logger.Infof(ctx, "pool state saved (%d IPs) to %s", len(s.IPs), path)
 	return nil
