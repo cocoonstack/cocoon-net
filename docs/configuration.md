@@ -17,6 +17,7 @@ variable; runtime state (what was provisioned, and for whom) lives in
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
 | `--lease-file` | `/var/lib/cocoon/net/leases.json` | DHCP lease persistence file |
+| `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |
 | `--dry-run` | `false` | Preview changes without applying |
@@ -30,6 +31,7 @@ variable; runtime state (what was provisioned, and for whom) lives in
 |---|---|---|
 | `COCOON_NET_LOG_LEVEL` | `info` | Log level (`debug`, `info`, `warn`, `error`) |
 | `COCOON_NET_METRICS_ADDR` | `:9092` | Prometheus metrics listen address (overridden by `--metrics-addr`) |
+| `COCOON_NET_CONTROL_SOCKET` | `/run/cocoon-net/control.sock` | Unix socket for the local lease lifecycle API (overridden by `--control-socket`) |
 
 ## Metrics
 

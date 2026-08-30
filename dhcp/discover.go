@@ -10,6 +10,8 @@ import (
 
 func (s *Server) handleDiscover(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
 	logger := log.WithFunc("dhcp.handleDiscover")
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
 
 	ip := s.leases.ipForMAC(mac)
 	if ip == nil {

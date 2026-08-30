@@ -71,10 +71,35 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	return evicted
 }
 
-func (s *leaseStore) remove(mac net.HardwareAddr) {
+// take atomically removes and returns the lease for mac. Expired entries are
+// returned too so explicit lifecycle cleanup can reclaim their pool slot
+// without waiting for the periodic expiry pass.
+func (s *leaseStore) take(mac net.HardwareAddr) *lease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.leases, mac.String())
+	key := mac.String()
+	l, ok := s.leases[key]
+	if !ok {
+		return nil
+	}
+	delete(s.leases, key)
+	cp := *l
+	return &cp
+}
+
+func (s *leaseStore) restore(l *lease) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.leases[l.MAC.String()] = l
+}
+
+func (s *leaseStore) restoreAll(leases []lease) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range leases {
+		l := leases[i]
+		s.leases[l.MAC.String()] = &l
+	}
 }
 
 func (s *leaseStore) ipForMAC(mac net.HardwareAddr) net.IP {
