@@ -55,7 +55,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 
 	platformName := flagPlatform
 	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
-	secondaryNICs := platform.DefaultSecondaryNICs(platformName)
+	secondaryNICs := node.PresentLinks(platform.DefaultSecondaryNICs(platformName))
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")

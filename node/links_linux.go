@@ -8,6 +8,17 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+// PresentLinks returns the names in ifaces that exist on the host.
+func PresentLinks(ifaces []string) []string {
+	present := make([]string, 0, len(ifaces))
+	for _, iface := range ifaces {
+		if _, err := netlink.LinkByName(iface); err == nil {
+			present = append(present, iface)
+		}
+	}
+	return present
+}
+
 func setupSecondaryNICs(ifaces []string) error {
 	for _, iface := range ifaces {
 		link, err := netlink.LinkByName(iface)
