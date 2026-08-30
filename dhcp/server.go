@@ -117,6 +117,8 @@ func (s *Server) Run(ctx context.Context) error {
 				return fmt.Errorf("stop control server: %w", err)
 			}
 		}
+		// held until exit: a handler still queued must not start a transaction the process cannot finish
+		s.lifecycleMu.Lock()
 		logger.Info(ctx, "DHCP server stopped")
 		return nil
 	case err := <-errCh:

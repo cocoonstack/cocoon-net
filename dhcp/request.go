@@ -76,15 +76,15 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 		logger.Warnf(ctx, "evicted stale lease for %s held by %s while ACKing %s", reqIP, e.MAC, mac)
 	}
 
+	if err := s.leases.save(); err != nil {
+		logger.Error(ctx, err, "persist leases before ACK")
+	}
 	if _, err := conn.WriteTo(resp.ToBytes(), peer); err != nil {
-		// Route + lease are committed; client will re-REQUEST and hit isLeasedTo.
-		logger.Errorf(ctx, err, "send ACK to %s (committed; awaiting client retry)", mac)
+		// route and lease are committed; the client re-REQUESTs and hits isLeasedTo
+		logger.Errorf(ctx, err, "send ACK to %s", mac)
 		return
 	}
 
 	result = "ok"
-	if err := s.leases.save(); err != nil {
-		logger.Error(ctx, err, "persist leases after ACK")
-	}
 	logger.Infof(ctx, "ACK %s -> %s", reqIP, mac)
 }

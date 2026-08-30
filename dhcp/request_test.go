@@ -76,6 +76,27 @@ func TestHandleRequestNoIPNotCounted(t *testing.T) {
 	}
 }
 
+func TestHandleRequestPersistsBeforeACK(t *testing.T) {
+	srv, conn, peer := newTestServer(t)
+	conn.Close() // the ACK write fails
+
+	orig := addRouteFn
+	addRouteFn = func(net.IP, int) error { return nil }
+	defer func() { addRouteFn = orig }()
+
+	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
+	reqIP := net.ParseIP("10.0.0.10").To4()
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
+
+	reloaded := newLeaseStore(srv.conf.LeaseFile)
+	if err := reloaded.load(); err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := reloaded.ipForMAC(mac); !got.Equal(reqIP) {
+		t.Fatalf("lease not on disk after a failed ACK write: %v", got)
+	}
+}
+
 func newTestServer(t *testing.T) (*Server, net.PacketConn, net.Addr) {
 	t.Helper()
 	srv := New(Config{
