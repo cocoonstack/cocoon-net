@@ -13,12 +13,16 @@ import (
 	"github.com/projecteru2/core/log"
 )
 
-// dropRuleComment must stay quote-safe or iptables -S quotes it and teardown cannot match the rule.
-const dropRuleComment = "cocoon-net-drop"
+const (
+	// dropRuleComment must stay quote-safe or iptables -S quotes it and teardown cannot match the rule.
+	dropRuleComment = "cocoon-net-drop"
+
+	xtablesLockWaitSeconds = 30
+)
 
 // ClearDropRules removes every FORWARD egress-isolation rule cocoon-net installed.
 func ClearDropRules(ctx context.Context) error {
-	ipt, err := iptables.New()
+	ipt, err := iptables.New(iptables.Timeout(xtablesLockWaitSeconds))
 	if err != nil {
 		return fmt.Errorf("init iptables: %w", err)
 	}
@@ -80,7 +84,7 @@ func setupIPTables(ctx context.Context, subnetCIDR string, secondaryNICs []strin
 		return err
 	}
 
-	ipt, err := iptables.New()
+	ipt, err := iptables.New(iptables.Timeout(xtablesLockWaitSeconds))
 	if err != nil {
 		return fmt.Errorf("init iptables: %w", err)
 	}
