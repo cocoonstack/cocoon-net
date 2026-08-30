@@ -106,6 +106,13 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
+	plat, err := newPlatform(ctx, platformName)
+	if err != nil {
+		return fmt.Errorf("init platform: %w", err)
+	}
+	if err := plat.Adopt(ctx, &platform.Config{NodeName: flagNodeName, SubnetCIDR: flagSubnet, Gateway: gateway, PrimaryNIC: primaryNIC}); err != nil {
+		logger.Warnf(ctx, "platform adopt fixes: %v", err)
+	}
 	if err := node.Setup(ctx, nodeConfigFromState(state, !flagManageIPTables)); err != nil {
 		return fmt.Errorf("node setup: %w", err)
 	}
