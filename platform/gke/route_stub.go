@@ -2,11 +2,8 @@
 
 package gke
 
-import (
-	"errors"
-	"fmt"
-)
+import "errors"
 
-func delLocalAliasRoute(nic, cidr string) error {
-	return fmt.Errorf("del local alias route %s dev %s: %w", cidr, nic, errors.ErrUnsupported)
+func delLocalAliasRoute(_, _ string) error {
+	return errors.ErrUnsupported
 }

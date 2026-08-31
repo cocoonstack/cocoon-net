@@ -17,7 +17,7 @@ func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string) error {
 	logger := log.WithFunc("node.setupBridge")
 
 	br := &netlink.Bridge{
-		LinkAttrs: netlink.LinkAttrs{Name: BridgeName},
+		Name: BridgeName,
 	}
 	if err := netlink.LinkAdd(br); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return fmt.Errorf("create bridge %s: %w", BridgeName, err)
