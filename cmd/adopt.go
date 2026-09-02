@@ -3,8 +3,9 @@ package cmd
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
+	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/projecteru2/core/log"
@@ -134,7 +135,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// adoptPool is the subnet minus the gateway on GKE; on Volcengine only the ENI secondary IPs are VPC-routed to the node.
+// adoptPool is the subnet minus the gateway on GKE; on Volcengine only the ENI secondary IPs inside --subnet are VPC-routed to the node.
 func adoptPool(ctx context.Context, plat platform.CloudPlatform, gateway string) ([]string, error) {
 	if plat.Name() != platform.PlatformVolcengine {
 		return platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
@@ -143,9 +144,21 @@ func adoptPool(ctx context.Context, plat platform.CloudPlatform, gateway string)
 	if err != nil {
 		return nil, fmt.Errorf("list ENI secondary IPs: %w", err)
 	}
-	if len(status.IPs) == 0 {
-		return nil, errors.New("no secondary IP is assigned to this node's ENIs")
+	prefix, err := netip.ParsePrefix(flagSubnet)
+	if err != nil {
+		return nil, fmt.Errorf("parse subnet: %w", err)
 	}
-	platform.SortIPs(status.IPs)
-	return status.IPs, nil
+	var ips []string
+	for _, ip := range slices.Sorted(slices.Values(status.IPs)) {
+		addr, err := netip.ParseAddr(ip)
+		if err != nil || !prefix.Contains(addr) || ip == gateway || slices.Contains(ips, ip) {
+			continue
+		}
+		ips = append(ips, ip)
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no ENI secondary IP inside %s is assigned to this node", flagSubnet)
+	}
+	platform.SortIPs(ips)
+	return ips, nil
 }
