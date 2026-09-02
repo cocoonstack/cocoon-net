@@ -1,16 +1,4 @@
 // Package gke implements the CloudPlatform interface for Google Kubernetes Engine.
-//
-// TECH DEBT: this package currently drives GCE alias-IP management by shelling
-// out to the `gcloud` CLI (see gcloud.go). This is an architectural bridge:
-// the subprocess path is opaque to the Go runtime (no typed errors, no retries,
-// no auth-refresh hooks) and relies on the operator having `gcloud`
-// installed & authenticated.
-//
-// TODO: migrate to the official GCP Go SDK
-// (cloud.google.com/go/compute/apiv1) for instances.UpdateNetworkInterface
-// and subnetworks.Patch. This removes the `gcloud` binary dependency and
-// surfaces typed error details (quotas, permission issues, propagation
-// delays) directly to callers.
 package gke
 
 import (

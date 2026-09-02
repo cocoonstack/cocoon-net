@@ -94,7 +94,7 @@ After init, run `cocoon-net daemon` to start the embedded DHCP server. Host rout
 
 ## Adopting existing nodes
 
-For EBM nodes that already have secondary ENIs and IPs provisioned by hand, use `adopt` to bring them under cocoon-net management without calling any Volcengine APIs:
+For EBM nodes that already have secondary ENIs and IPs provisioned by hand, use `adopt` to bring them under cocoon-net management; it reads the ENIs once (`DescribeNetworkInterfaces`) to seed the pool from the assigned secondary IPs and creates or changes nothing:
 
 ```bash
 sudo cocoon-net adopt \

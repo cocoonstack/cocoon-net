@@ -90,7 +90,6 @@ func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	}
 }
 
-// an expired other-MAC entry must be evicted or the sweep reclaims the live holder's IP
 func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	t.Parallel()
 

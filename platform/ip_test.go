@@ -213,3 +213,16 @@ func TestIP4ToUint32(t *testing.T) {
 		})
 	}
 }
+
+func TestHostPrefix(t *testing.T) {
+	prefix, gw, bcast, err := HostPrefix("10.0.1.0/24", "10.0.1.1")
+	if err != nil {
+		t.Fatalf("HostPrefix: %v", err)
+	}
+	if prefix.String() != "10.0.1.0/24" || gw.String() != "10.0.1.1" || bcast.String() != "10.0.1.255" {
+		t.Fatalf("HostPrefix = %v %v %v", prefix, gw, bcast)
+	}
+	if _, _, _, err := HostPrefix("10.0.1.0/24", "10.0.2.1"); err == nil {
+		t.Fatal("gateway outside the prefix accepted")
+	}
+}

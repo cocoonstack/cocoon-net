@@ -6,7 +6,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-// runVe is the sole ve CLI call site; the subprocess tech debt is in the package doc.
+// runVe shells out to the ve CLI; the volcengine-go-sdk migration is pending.
 func runVe(ctx context.Context, args ...string) ([]byte, error) {
 	return platform.RunSubprocess(ctx, "ve", args...)
 }

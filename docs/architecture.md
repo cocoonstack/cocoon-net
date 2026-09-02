@@ -22,7 +22,9 @@ pool.json  <----------        |
 1. `cocoon-net init` -- provisions cloud networking resources (GKE alias IPs
    or Volcengine secondary ENI IPs), configures the node, and persists the
    result to `pool.json`. `adopt` is the same step for a node provisioned by
-   hand: it configures and persists, but calls no cloud API.
+   hand: it configures and persists; on GKE it calls no cloud API, on
+   Volcengine it reads the ENI secondary IPs, the only addresses the VPC
+   routes to the node.
 2. `cocoon-net daemon` -- long-running service: re-applies node setup, then
    starts the [embedded DHCP server](dhcp.md) that hands out pool IPs and
    manages dynamic host routes.

@@ -34,7 +34,6 @@ func TestIPPool_TryClaimUnknownIP(t *testing.T) {
 	}
 }
 
-// many goroutines race for the same free IP; exactly one must win
 func TestIPPool_TryClaimRace(t *testing.T) {
 	t.Parallel()
 
@@ -67,7 +66,6 @@ func TestIPPool_TryClaimRace(t *testing.T) {
 	}
 }
 
-// many goroutines target one IP inside a multi-IP pool; tryClaim must not claim a neighbour
 func TestIPPool_TryClaimRaceManyIPs(t *testing.T) {
 	t.Parallel()
 

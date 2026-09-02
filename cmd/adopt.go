@@ -2,7 +2,11 @@ package cmd
 
 import (
 	"cmp"
+	"context"
 	"fmt"
+	"net"
+	"net/netip"
+	"slices"
 	"strings"
 
 	"github.com/projecteru2/core/log"
@@ -48,17 +52,24 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("compute gateway: %w", err)
 	}
 
-	ips, err := platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
+	platformName := flagPlatform
+	plat, err := newPlatform(ctx, platformName)
+	if err != nil {
+		return fmt.Errorf("adopt platform: %w", err)
+	}
+	ips, poolENIs, err := adoptPool(ctx, plat, flagSubnet, gateway, flagPoolSize)
 	if err != nil {
 		return fmt.Errorf("compute ip list: %w", err)
 	}
 
-	platformName := flagPlatform
 	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
 	secondaryNICCandidates := platform.DefaultSecondaryNICs(platformName)
 	secondaryNICs := node.PresentLinks(secondaryNICCandidates)
 	if len(secondaryNICCandidates) > 0 && len(secondaryNICs) == 0 {
 		return fmt.Errorf("no secondary NIC found; expected one of %s", strings.Join(secondaryNICCandidates, ", "))
+	}
+	if err := requirePoolLinks(poolENIs, node.LinkMACs(secondaryNICs)); err != nil {
+		return err
 	}
 
 	if flagDryRun {
@@ -110,10 +121,6 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	plat, err := newPlatform(ctx, platformName)
-	if err != nil {
-		return fmt.Errorf("adopt platform: %w", err)
-	}
 	if err := plat.Adopt(ctx, &platform.Config{NodeName: flagNodeName, SubnetCIDR: flagSubnet, Gateway: gateway, PrimaryNIC: primaryNIC}); err != nil {
 		return fmt.Errorf("adopt platform: %w", err)
 	}
@@ -130,4 +137,61 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("cocoon-net adopt complete: %d IPs registered on %s (%s, cloud preserved)\n",
 		len(ips), flagSubnet, platformName)
 	return nil
+}
+
+// adoptPool is the subnet minus the gateway on GKE; on Volcengine only the ENI secondary IPs inside subnet are VPC-routed to the node, and the contributing ENIs come back for the link check.
+func adoptPool(ctx context.Context, plat platform.CloudPlatform, subnet, gateway string, poolSize int) ([]string, []platform.ENIStatus, error) {
+	if plat.Name() != platform.PlatformVolcengine {
+		ips, err := platform.SubnetIPs(subnet, gateway, poolSize)
+		return ips, nil, err
+	}
+	prefix, gwAddr, bcast, err := platform.HostPrefix(subnet, gateway)
+	if err != nil {
+		return nil, nil, err
+	}
+	status, err := plat.Status(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list ENI secondary IPs: %w", err)
+	}
+	var ips []string
+	var poolENIs []platform.ENIStatus
+	for _, eni := range status.ENIs {
+		contributed := false
+		for _, ip := range eni.IPs {
+			addr, err := netip.ParseAddr(ip)
+			if err != nil || !prefix.Contains(addr) || addr == gwAddr || addr == bcast || slices.Contains(ips, ip) {
+				continue
+			}
+			ips = append(ips, ip)
+			contributed = true
+		}
+		if contributed {
+			poolENIs = append(poolENIs, eni)
+		}
+	}
+	if len(ips) == 0 {
+		return nil, nil, fmt.Errorf("no ENI secondary IP inside %s is assigned to this node", subnet)
+	}
+	platform.SortIPs(ips)
+	return ips, poolENIs, nil
+}
+
+func requirePoolLinks(enis []platform.ENIStatus, linkMACs map[string]string) error {
+	byMAC := make(map[string]string, len(linkMACs))
+	for name, mac := range linkMACs {
+		byMAC[canonicalMAC(mac)] = name
+	}
+	for _, eni := range enis {
+		if _, ok := byMAC[canonicalMAC(eni.MAC)]; !ok {
+			return fmt.Errorf("ENI %s (%s) carries pool IPs but no secondary link has that address", eni.ID, eni.MAC)
+		}
+	}
+	return nil
+}
+
+func canonicalMAC(s string) string {
+	if hw, err := net.ParseMAC(s); err == nil {
+		return hw.String()
+	}
+	return strings.ToLower(s)
 }

@@ -22,7 +22,7 @@ func (s *Server) ReleaseLease(ctx context.Context, mac net.HardwareAddr) (bool, 
 
 	// persist before freeing the IP; on failure restore the entry so a retry cannot double-allocate after restart
 	if err := s.leases.save(); err != nil {
-		s.leases.restore(l)
+		s.leases.restoreAll([]lease{*l})
 		return true, fmt.Errorf("persist leases: %w", err)
 	}
 	s.freeIP(ctx, l.IP)

@@ -62,8 +62,17 @@ type TeardownConfig struct {
 type PoolStatus struct {
 	ENIIDs []string
 	IPs    []string
+	// ENIs lists each ENI with its secondary IPs (Volcengine only).
+	ENIs []ENIStatus
 	// AliasRanges lists NAME:CIDR entries bound to the primary NIC (GKE only).
 	AliasRanges []string
+}
+
+// ENIStatus is one ENI's identity and secondary IPs.
+type ENIStatus struct {
+	ID  string
+	MAC string
+	IPs []string
 }
 
 // DefaultNIC returns the default primary NIC for a given platform.
