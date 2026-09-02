@@ -11,7 +11,7 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--platform` | auto-detect | Cloud platform (`gke` or `volcengine`); auto-detected from instance metadata if omitted |
 | `--node-name` | (required) | Virtual node name |
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
-| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and by `adopt`, ignored by Volcengine `init` (always 7 ENIs x 20 IPs) |
+| `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and `adopt`, ignored on Volcengine (the pool is the ENI secondary IPs) |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
 | `--primary-nic` | auto-detect | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |

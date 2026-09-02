@@ -23,7 +23,9 @@ pool.json  <----------        |
 
 **Two-phase operation**: `cocoon-net init` does one-time cloud provisioning
 and state persistence, while `adopt` registers a node whose cloud side was
-provisioned by hand and calls no cloud API; `cocoon-net daemon` is the
+provisioned by hand (GKE: no cloud API call; Volcengine: one read of the
+ENI secondary IPs, the only addresses the VPC routes to the node);
+`cocoon-net daemon` is the
 long-running service that sets up node networking, serves DHCP, and manages
 routes.
 Full details in [Architecture](docs/architecture.md).

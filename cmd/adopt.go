@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"cmp"
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -48,12 +50,16 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("compute gateway: %w", err)
 	}
 
-	ips, err := platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
+	platformName := flagPlatform
+	plat, err := newPlatform(ctx, platformName)
+	if err != nil {
+		return fmt.Errorf("adopt platform: %w", err)
+	}
+	ips, err := adoptPool(ctx, plat, gateway)
 	if err != nil {
 		return fmt.Errorf("compute ip list: %w", err)
 	}
 
-	platformName := flagPlatform
 	primaryNIC := cmp.Or(flagPrimaryNIC, platform.DefaultNIC(platformName))
 	secondaryNICCandidates := platform.DefaultSecondaryNICs(platformName)
 	secondaryNICs := node.PresentLinks(secondaryNICCandidates)
@@ -110,10 +116,6 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	plat, err := newPlatform(ctx, platformName)
-	if err != nil {
-		return fmt.Errorf("adopt platform: %w", err)
-	}
 	if err := plat.Adopt(ctx, &platform.Config{NodeName: flagNodeName, SubnetCIDR: flagSubnet, Gateway: gateway, PrimaryNIC: primaryNIC}); err != nil {
 		return fmt.Errorf("adopt platform: %w", err)
 	}
@@ -130,4 +132,20 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("cocoon-net adopt complete: %d IPs registered on %s (%s, cloud preserved)\n",
 		len(ips), flagSubnet, platformName)
 	return nil
+}
+
+// adoptPool is the subnet minus the gateway on GKE; on Volcengine only the ENI secondary IPs are VPC-routed to the node.
+func adoptPool(ctx context.Context, plat platform.CloudPlatform, gateway string) ([]string, error) {
+	if plat.Name() != platform.PlatformVolcengine {
+		return platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
+	}
+	status, err := plat.Status(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list ENI secondary IPs: %w", err)
+	}
+	if len(status.IPs) == 0 {
+		return nil, errors.New("no secondary IP is assigned to this node's ENIs")
+	}
+	platform.SortIPs(status.IPs)
+	return status.IPs, nil
 }

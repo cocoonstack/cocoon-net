@@ -10,8 +10,8 @@ VPC-routable IP directly from this server.
 
 - The pool of allocatable IPs comes from `pool.json` (the addresses the
   platform provisioner assigned at `init`/`adopt` time). GKE `init` and `adopt`
-  derive it from the subnet minus the gateway; Volcengine `init` uses whatever
-  secondary IPs its ENIs report.
+  derive it from the subnet minus the gateway; Volcengine `init` and `adopt`
+  use the secondary IPs its ENIs report.
 - Default lease time is 24 hours; expired leases are swept every minute.
 - A DHCPOFFER reserves an IP for 60 seconds; if no matching DHCPREQUEST
   arrives in that window, the IP is returned to the free pool.
