@@ -25,20 +25,13 @@ func newPendingOffers(timeout time.Duration) *pendingOffers {
 	}
 }
 
-// add returns the MAC's previously offered IP when it differs, for the caller to release back to the pool.
-func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) net.IP {
+func (p *pendingOffers) add(mac net.HardwareAddr, ip net.IP) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	key := mac.String()
-	var oldIP net.IP
-	if old, ok := p.offers[key]; ok && !old.IP.Equal(ip.To4()) {
-		oldIP = old.IP
-	}
-	p.offers[key] = &pendingOffer{
+	p.offers[mac.String()] = &pendingOffer{
 		IP:     ip.To4(),
 		Expiry: time.Now().Add(p.timeout),
 	}
-	return oldIP
 }
 
 // remove returns the dropped offer's IP, or nil, for the caller to release back to the pool.

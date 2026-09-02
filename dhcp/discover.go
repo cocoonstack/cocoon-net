@@ -45,8 +45,6 @@ func (s *Server) offerIP(mac net.HardwareAddr) net.IP {
 			return nil
 		}
 	}
-	if oldIP := s.offers.add(mac, ip); oldIP != nil {
-		s.pool.release(oldIP)
-	}
+	s.offers.add(mac, ip)
 	return ip
 }

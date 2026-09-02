@@ -85,12 +85,6 @@ func (s *leaseStore) take(mac net.HardwareAddr) *lease {
 	return &cp
 }
 
-func (s *leaseStore) restore(l *lease) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.leases[l.MAC.String()] = l
-}
-
 func (s *leaseStore) restoreAll(leases []lease) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -181,7 +175,7 @@ func (s *leaseStore) save() error {
 }
 
 func (s *leaseStore) load() error {
-	data, err := os.ReadFile(s.filePath) //nolint:gosec
+	data, err := os.ReadFile(s.filePath) //nolint:gosec // the path is the operator's state dir
 	if err != nil {
 		return fmt.Errorf("read leases from %s: %w", s.filePath, err)
 	}
