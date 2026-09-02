@@ -24,7 +24,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:     "cocoon-net",
 		Short:   "VPC-native networking setup for cocoon VM nodes",
-		Version: version.VERSION,
+		Version: fmt.Sprintf("%s (rev=%s built=%s)", version.VERSION, version.REVISION, version.BUILTAT),
 	}
 
 	rootCmd.AddCommand(newInitCmd())

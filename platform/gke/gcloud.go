@@ -30,7 +30,7 @@ func (a aliasEntry) String() string {
 	return a.RangeName + ":" + a.IPCIDRRange
 }
 
-// runGcloud shells out to the gcloud CLI; tracked as tech debt in the package doc.
+// runGcloud shells out to gcloud; the compute/apiv1 SDK migration is pending.
 func runGcloud(ctx context.Context, args ...string) ([]byte, error) {
 	return platform.RunSubprocess(ctx, "gcloud", args...)
 }
