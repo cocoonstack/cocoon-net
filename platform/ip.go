@@ -50,24 +50,24 @@ func ResolveGateway(gateway, cidr string) (string, error) {
 	return FirstHostIP(cidr)
 }
 
-// SubnetIPs returns up to count host IPs from cidr, skipping the gateway and broadcast; the gateway must be a valid host address.
-func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
+// HostPrefix parses cidr and checks that gateway is an IPv4 host inside it; it returns the prefix, the gateway and the broadcast address.
+func HostPrefix(cidr, gateway string) (netip.Prefix, netip.Addr, netip.Addr, error) {
 	prefix, err := netip.ParsePrefix(cidr)
 	if err != nil {
-		return nil, fmt.Errorf("parse cidr %s: %w", cidr, err)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("parse cidr %s: %w", cidr, err)
 	}
 	if !prefix.Addr().Is4() {
-		return nil, fmt.Errorf("cidr %s is not IPv4", cidr)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("cidr %s is not IPv4", cidr)
 	}
 	gwAddr, err := netip.ParseAddr(gateway)
 	if err != nil {
-		return nil, fmt.Errorf("parse gateway %q: %w", gateway, err)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("parse gateway %q: %w", gateway, err)
 	}
 	if !gwAddr.Is4() {
-		return nil, fmt.Errorf("gateway %s is not IPv4", gateway)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("gateway %s is not IPv4", gateway)
 	}
 
-	// broadcast = network | ~mask, computed so the loop can skip it
+	// broadcast = network | ~mask
 	netAddr := prefix.Masked().Addr().As4()
 	bits := prefix.Bits()
 	hostBits := uint32(32 - bits) //nolint:gosec // bits ∈ [0,32] from ParsePrefix
@@ -84,10 +84,19 @@ func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
 	network := prefix.Masked().Addr()
 
 	if !prefix.Contains(gwAddr) {
-		return nil, fmt.Errorf("gateway %s is outside cidr %s", gateway, cidr)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("gateway %s is outside cidr %s", gateway, cidr)
 	}
 	if gwAddr == network || gwAddr == bcast {
-		return nil, fmt.Errorf("gateway %s collides with network/broadcast of %s", gateway, cidr)
+		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("gateway %s collides with network/broadcast of %s", gateway, cidr)
+	}
+	return prefix, gwAddr, bcast, nil
+}
+
+// SubnetIPs returns up to count host IPs from cidr, skipping the gateway and broadcast; the gateway must be a valid host address.
+func SubnetIPs(cidr, gateway string, count int) ([]string, error) {
+	prefix, gwAddr, bcast, err := HostPrefix(cidr, gateway)
+	if err != nil {
+		return nil, err
 	}
 
 	if count < 0 {

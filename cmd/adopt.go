@@ -56,7 +56,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("adopt platform: %w", err)
 	}
-	ips, err := adoptPool(ctx, plat, gateway)
+	ips, poolENIs, err := adoptPool(ctx, plat, gateway)
 	if err != nil {
 		return fmt.Errorf("compute ip list: %w", err)
 	}
@@ -66,6 +66,9 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	secondaryNICs := node.PresentLinks(secondaryNICCandidates)
 	if len(secondaryNICCandidates) > 0 && len(secondaryNICs) == 0 {
 		return fmt.Errorf("no secondary NIC found; expected one of %s", strings.Join(secondaryNICCandidates, ", "))
+	}
+	if len(secondaryNICs) < poolENIs {
+		return fmt.Errorf("%d ENIs carry pool IPs but only %d secondary links are present (%s)", poolENIs, len(secondaryNICs), strings.Join(secondaryNICs, ","))
 	}
 
 	if flagDryRun {
@@ -136,29 +139,39 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 }
 
 // adoptPool is the subnet minus the gateway on GKE; on Volcengine only the ENI secondary IPs inside --subnet are VPC-routed to the node.
-func adoptPool(ctx context.Context, plat platform.CloudPlatform, gateway string) ([]string, error) {
+// The count is the ENIs that contribute pool IPs; each needs a present link.
+func adoptPool(ctx context.Context, plat platform.CloudPlatform, gateway string) ([]string, int, error) {
 	if plat.Name() != platform.PlatformVolcengine {
-		return platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
+		ips, err := platform.SubnetIPs(flagSubnet, gateway, flagPoolSize)
+		return ips, 0, err
+	}
+	prefix, gwAddr, bcast, err := platform.HostPrefix(flagSubnet, gateway)
+	if err != nil {
+		return nil, 0, err
 	}
 	status, err := plat.Status(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list ENI secondary IPs: %w", err)
-	}
-	prefix, err := netip.ParsePrefix(flagSubnet)
-	if err != nil {
-		return nil, fmt.Errorf("parse subnet: %w", err)
+		return nil, 0, fmt.Errorf("list ENI secondary IPs: %w", err)
 	}
 	var ips []string
-	for _, ip := range slices.Sorted(slices.Values(status.IPs)) {
-		addr, err := netip.ParseAddr(ip)
-		if err != nil || !prefix.Contains(addr) || ip == gateway || slices.Contains(ips, ip) {
-			continue
+	poolENIs := 0
+	for _, eni := range status.ENIIPs {
+		contributed := false
+		for _, ip := range eni {
+			addr, err := netip.ParseAddr(ip)
+			if err != nil || !prefix.Contains(addr) || addr == gwAddr || addr == bcast || slices.Contains(ips, ip) {
+				continue
+			}
+			ips = append(ips, ip)
+			contributed = true
 		}
-		ips = append(ips, ip)
+		if contributed {
+			poolENIs++
+		}
 	}
 	if len(ips) == 0 {
-		return nil, fmt.Errorf("no ENI secondary IP inside %s is assigned to this node", flagSubnet)
+		return nil, 0, fmt.Errorf("no ENI secondary IP inside %s is assigned to this node", flagSubnet)
 	}
 	platform.SortIPs(ips)
-	return ips, nil
+	return ips, poolENIs, nil
 }

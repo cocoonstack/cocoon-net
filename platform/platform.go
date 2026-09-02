@@ -62,6 +62,8 @@ type TeardownConfig struct {
 type PoolStatus struct {
 	ENIIDs []string
 	IPs    []string
+	// ENIIPs lists each ENI's secondary IPs, parallel to ENIIDs (Volcengine only).
+	ENIIPs [][]string
 	// AliasRanges lists NAME:CIDR entries bound to the primary NIC (GKE only).
 	AliasRanges []string
 }
