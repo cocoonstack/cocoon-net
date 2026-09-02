@@ -19,7 +19,7 @@ func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
 	}
 
 	var eniIDs, ips []string
-	var eniIPs [][]string
+	statuses := make([]platform.ENIStatus, 0, len(enis))
 	for _, e := range enis {
 		eniIDs = append(eniIDs, e.NetworkInterfaceID)
 		var own []string
@@ -28,13 +28,13 @@ func (v *Volcengine) Status(ctx context.Context) (*platform.PoolStatus, error) {
 				own = append(own, pip.PrivateIPAddress)
 			}
 		}
-		eniIPs = append(eniIPs, own)
+		statuses = append(statuses, platform.ENIStatus{ID: e.NetworkInterfaceID, MAC: e.MacAddress, IPs: own})
 		ips = append(ips, own...)
 	}
 
 	return &platform.PoolStatus{
 		ENIIDs: eniIDs,
 		IPs:    ips,
-		ENIIPs: eniIPs,
+		ENIs:   statuses,
 	}, nil
 }

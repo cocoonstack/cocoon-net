@@ -19,6 +19,7 @@ const (
 type networkInterface struct {
 	NetworkInterfaceID string `json:"NetworkInterfaceId"`
 	DeviceID           string `json:"DeviceId"`
+	MacAddress         string `json:"MacAddress"`
 	Type               string `json:"Type"`
 	PrivateIPSets      struct {
 		PrivateIPSet []struct {
