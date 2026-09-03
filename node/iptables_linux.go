@@ -45,9 +45,6 @@ func reconcileDropRules(ctx context.Context, ipt *iptables.IPTables, want []stri
 		}
 		// List emits "-A FORWARD <spec>"; Delete wants only <spec>.
 		fields := strings.Fields(rule)
-		if len(fields) < 3 {
-			continue
-		}
 		if dst, ok := ruleDest(fields); ok && slices.Contains(want, dst) {
 			continue
 		}

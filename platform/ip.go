@@ -67,7 +67,6 @@ func HostPrefix(cidr, gateway string) (netip.Prefix, netip.Addr, netip.Addr, err
 		return netip.Prefix{}, netip.Addr{}, netip.Addr{}, fmt.Errorf("gateway %s is not IPv4", gateway)
 	}
 
-	// broadcast = network | ~mask
 	netAddr := prefix.Masked().Addr().As4()
 	bits := prefix.Bits()
 	hostBits := uint32(32 - bits) //nolint:gosec // bits ∈ [0,32] from ParsePrefix

@@ -18,9 +18,7 @@ const (
 type CloudPlatform interface {
 	// Name returns the platform identifier ("gke", "volcengine").
 	Name() string
-	// ProvisionNetwork provisions cloud networking resources for the node.
 	ProvisionNetwork(ctx context.Context, cfg *Config) (*NetworkResult, error)
-	// Status returns current IP pool status.
 	Status(ctx context.Context) (*PoolStatus, error)
 	// Teardown removes the cloud resources this node claimed, using the persisted state in cfg.
 	Teardown(ctx context.Context, cfg *TeardownConfig) error

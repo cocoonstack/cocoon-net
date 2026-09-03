@@ -21,7 +21,7 @@ var _ platform.CloudPlatform = (*Volcengine)(nil)
 // Volcengine implements CloudPlatform; the struct is empty because credentials live in the env of the `ve` child binary.
 type Volcengine struct{}
 
-// New loads credentials from env or ~/.volcengine/config.json exactly once.
+// New loads credentials from env or ~/.volcengine/config.json.
 func New(ctx context.Context) (*Volcengine, error) {
 	if err := loadEnv(ctx); err != nil {
 		return nil, fmt.Errorf("load volcengine env: %w", err)
