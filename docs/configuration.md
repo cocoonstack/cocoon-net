@@ -16,7 +16,7 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--primary-nic` | `eth0` (Volcengine) / `ens4` (other platforms) | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
-| `--lease-file` | `/var/lib/cocoon/net/leases.json` (independent of `--state-dir`) | (daemon) DHCP lease persistence file |
+| `--lease-file` | `<state-dir>/leases.json` | (daemon) DHCP lease persistence file |
 | `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |

@@ -14,8 +14,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-const leaseFileName = "leases.json"
-
 func newTeardownCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "teardown",

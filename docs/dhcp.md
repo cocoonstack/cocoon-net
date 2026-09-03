@@ -25,7 +25,7 @@ VPC-routable IP directly from this server.
   `204` after a successful or already-completed release, `400` for an invalid
   MAC, and `500` when persistence fails; callers may safely retry a `500`.
 - Leases are persisted to the `--lease-file` (default
-  `/var/lib/cocoon/net/leases.json`) on every allocation/release, and
+  `<state-dir>/leases.json`) on every allocation/release, and
   reloaded at daemon startup so a restart doesn't strand or double-assign
   leases.
 
