@@ -45,7 +45,6 @@ func TestSubnetIPs_Slash24SkipsBroadcast(t *testing.T) {
 func TestSubnetIPs_Slash28(t *testing.T) {
 	t.Parallel()
 
-	// /28 has 16 addresses, 14 hosts, minus gateway = 13.
 	got, err := SubnetIPs("192.168.10.0/28", "192.168.10.1", 32)
 	if err != nil {
 		t.Fatalf("SubnetIPs: %v", err)
