@@ -71,6 +71,10 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err := requirePoolLinks(poolENIs, node.LinkMACs(secondaryNICs)); err != nil {
 		return err
 	}
+	eniIDs := make([]string, len(poolENIs))
+	for i, eni := range poolENIs {
+		eniIDs[i] = eni.ID
+	}
 
 	if flagDryRun {
 		fmt.Println("[dry-run] would adopt node with config:")
@@ -115,6 +119,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		Gateway:            gateway,
 		PrimaryNIC:         primaryNIC,
 		SecondaryNICs:      secondaryNICs,
+		ENIIDs:             eniIDs,
 		IPs:                ips,
 		DNSServers:         dnsServers,
 		DropInternalAccess: flagDropInternal,
