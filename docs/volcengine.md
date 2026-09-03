@@ -105,7 +105,7 @@ sudo cocoon-net adopt \
 
 This records whichever of `eth1`..`eth7` exist on the host as the secondary NICs, brings them up, configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. An adopted node records no ENI IDs, so `cocoon-net teardown` falls back to detaching and deleting every non-primary ENI on the instance, hand-provisioned ones included; to keep them, skip `teardown` and remove the state files yourself. A node set up by `init` tears down only the ENIs listed in `pool.json`.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. The adopted state records the ENIs that contribute pool IPs, so `cocoon-net teardown` detaches and deletes exactly those ENIs while leaving unrelated secondary ENIs untouched. To keep the adopted ENIs, skip `teardown` and remove the state files yourself.
 
 ## Manual Steps (for reference)
 

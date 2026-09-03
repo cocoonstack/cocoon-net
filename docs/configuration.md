@@ -73,7 +73,7 @@ Example file: [docs/pool-example.json](pool-example.json).
 | `primaryNIC` | Host primary NIC |
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
 | `ips` | Allocatable DHCP pool (excludes the gateway on GKE and `adopt`; on Volcengine it is the secondary IPs the ENIs report) |
-| `eniIDs` | Volcengine only: the ENIs `init` recorded; `teardown` deletes exactly these |
+| `eniIDs` | Volcengine only: the pool ENIs `init` or `adopt` recorded; `teardown` deletes exactly these |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |
 | `dropInternalAccess`, `dropCIDRs` | Mirrors `--drop-internal-access` / `--drop-cidr`, reapplied by the daemon on every start unless `--skip-iptables` is set |
