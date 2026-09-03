@@ -61,3 +61,24 @@ func TestResolveSubnet(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveLeaseFile(t *testing.T) {
+	tests := []struct {
+		name      string
+		stateDir  string
+		leaseFile string
+		want      string
+	}{
+		{"default state dir", defaultStateDir, "", "/var/lib/cocoon/net/leases.json"},
+		{"custom state dir", "/srv/cocoon/net", "", "/srv/cocoon/net/leases.json"},
+		{"explicit lease file wins", "/srv/cocoon/net", "/run/cocoon/leases.json", "/run/cocoon/leases.json"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flagStateDir, flagLeaseFile = tt.stateDir, tt.leaseFile
+			if got := resolveLeaseFile(); got != tt.want {
+				t.Errorf("resolveLeaseFile() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

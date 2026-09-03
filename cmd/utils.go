@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"net"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -13,7 +15,10 @@ import (
 	"github.com/cocoonstack/cocoon-net/pool"
 )
 
-const defaultStateDir = "/var/lib/cocoon/net"
+const (
+	defaultStateDir = "/var/lib/cocoon/net"
+	leaseFileName   = "leases.json"
+)
 
 var (
 	flagPlatform     string
@@ -38,7 +43,7 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
 	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")
 	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
-	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (auto-detect if empty)")
+	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (default: eth0 on volcengine, ens4 otherwise)")
 	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
@@ -89,6 +94,10 @@ func resolveSubnet() error {
 	}
 	flagSubnet = ipNet.String()
 	return nil
+}
+
+func resolveLeaseFile() string {
+	return cmp.Or(flagLeaseFile, filepath.Join(flagStateDir, leaseFileName))
 }
 
 func splitTrim(s, sep string) []string {

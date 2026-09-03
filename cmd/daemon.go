@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	defaultLeaseFile     = "/var/lib/cocoon/net/leases.json"
 	defaultControlSocket = "/run/cocoon-net/control.sock"
 	defaultMetricsAddr   = ":9092"
 
@@ -52,7 +51,7 @@ they expire.`,
 		RunE: runDaemon,
 	}
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")
-	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "path to lease persistence file")
+	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", "", "lease persistence file (default <state-dir>/leases.json)")
 	cmd.Flags().StringVar(&flagControlSocket, "control-socket", cmp.Or(os.Getenv("COCOON_NET_CONTROL_SOCKET"), defaultControlSocket), "root-only Unix socket for local lease lifecycle operations (empty to disable)")
 	cmd.Flags().BoolVar(&flagSkipIPTables, "skip-iptables", false, "skip iptables setup (for pre-configured nodes)")
 	cmd.Flags().StringVar(&flagMetricsAddr, "metrics-addr", cmp.Or(os.Getenv("COCOON_NET_METRICS_ADDR"), defaultMetricsAddr), "prometheus metrics listen address (empty to disable)")
@@ -109,7 +108,7 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 		Gateway:       gateway,
 		SubnetMask:    ipNet.Mask,
 		DNSServers:    dnsIPs,
-		LeaseFile:     flagLeaseFile,
+		LeaseFile:     resolveLeaseFile(),
 		ControlSocket: flagControlSocket,
 	}, poolIPs)
 

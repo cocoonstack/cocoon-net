@@ -13,10 +13,10 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
 | `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and `adopt`, ignored on Volcengine (the pool is the ENI secondary IPs) |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
-| `--primary-nic` | auto-detect | Host primary NIC |
+| `--primary-nic` | `eth0` (volcengine) / `ens4` | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
-| `--lease-file` | `/var/lib/cocoon/net/leases.json` | (daemon) DHCP lease persistence file |
+| `--lease-file` | `<state-dir>/leases.json` | (daemon) DHCP lease persistence file |
 | `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |

@@ -84,6 +84,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("  gateway:         %s\n", gateway)
 		fmt.Printf("  primary-nic:     %s\n", primaryNIC)
 		fmt.Printf("  secondary-nics:  %s\n", strings.Join(secondaryNICs, ","))
+		fmt.Printf("  enis:            %s\n", cmp.Or(strings.Join(eniIDs, ","), "none"))
 		if len(ips) > 0 {
 			fmt.Printf("  pool-size:       %d (first=%s, last=%s)\n", len(ips), ips[0], ips[len(ips)-1])
 		} else {
