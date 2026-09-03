@@ -10,8 +10,10 @@ VPC-routable IP directly from this server.
 
 - The pool of allocatable IPs comes from `pool.json` (the addresses the
   platform provisioner assigned at `init`/`adopt` time). GKE `init` and `adopt`
-  derive it from the subnet minus the gateway; Volcengine `init` and `adopt`
-  use the secondary IPs its ENIs report.
+  derive up to `--pool-size` host addresses from the subnet, skipping the
+  gateway and the broadcast address (so a `/24` with the default pool-size of
+  140 yields 140 addresses, not all 253 usable host addresses); Volcengine
+  `init` and `adopt` use the secondary IPs its ENIs report.
 - Default lease time is 24 hours; expired leases are swept every minute.
 - A DHCPOFFER reserves an IP for 60 seconds; if no matching DHCPREQUEST
   arrives in that window, the IP is returned to the free pool.
@@ -119,5 +121,12 @@ omit the iptables step), and starts the DHCP server described above. It holds
 `/run/cocoon-net.pid` and refuses to start while another daemon owns it. See
 [Installation](installation.md#systemd-unit) for the systemd unit.
 
-On `cocoon-net teardown`, both `pool.json` and `<state-dir>/leases.json` are
-removed; a daemon started with a custom `--lease-file` keeps that file.
+The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
+`dnsmasq` or `dhcpd` already holding that port makes the daemon fail to start.
+
+On `cocoon-net teardown`, the cloud resources (ENIs on Volcengine, the alias
+range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and
+`<state-dir>/leases.json` are all removed (on GKE the boot cron job that
+reapplies the guest-agent route fix is removed too); a daemon started with a
+custom `--lease-file` keeps that file. The `cni0` bridge, the FORWARD ACCEPT /
+NAT MASQUERADE rules, and the CNI conflist are left in place.

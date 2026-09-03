@@ -37,7 +37,7 @@ sudo cocoon-net daemon
 # inspect pool state
 cocoon-net status
 
-# remove cloud networking resources (also deletes pool.json and the default leases.json)
+# remove cloud networking resources (also deletes pool.json, leases.json, and the tagged DROP rules; the cni0 bridge, FORWARD/NAT rules, and CNI conflist stay)
 sudo cocoon-net teardown
 ```
 

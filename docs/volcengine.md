@@ -83,8 +83,8 @@ sudo cocoon-net init \
 This will:
 1. Detect the Volcengine platform via instance metadata (`http://100.96.0.96/latest/meta-data/`)
 2. Create subnet `172.20.100.0/24` in the VPC (if it does not exist)
-3. Reuse attached secondary ENIs and create enough in the VM subnet to reach 7
-4. Assign 20 secondary private IPs per ENI (140 total)
+3. Reuse every attached non-primary ENI regardless of its subnet, and create new ones in the VM subnet to reach 7
+4. Top each ENI up to 20 secondary IPs (140 total); `teardown` later detaches and deletes all of them, including reused ones -- detach any hand-provisioned secondary ENI first if it must survive `teardown`
 5. Bring up `eth1`–`eth7` interfaces
 6. Configure `cni0` bridge, iptables, sysctl
 7. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
@@ -104,6 +104,11 @@ sudo cocoon-net adopt \
 ```
 
 This records whichever of `eth1`..`eth7` exist on the host as the secondary NICs, brings them up, configures bridge, CNI conflist, and sysctl from cocoon-net's templates, and writes the pool state file. The existing ENIs and secondary IPs are preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
+
+`adopt` fails fast on three preconditions:
+- No `eth1`..`eth7` link is present on the host: `no secondary NIC found; expected one of eth1, eth2, ..., eth7`.
+- None of the ENIs' secondary IPs fall inside `--subnet`: `no ENI secondary IP inside <subnet> is assigned to this node`.
+- An ENI that contributes pool IPs has no present secondary link with a matching MAC: `ENI <id> (<mac>) carries pool IPs but no secondary link has that address`.
 
 After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` works normally. The adopted state records the ENIs that contribute pool IPs, so `cocoon-net teardown` detaches and deletes exactly those ENIs while leaving unrelated secondary ENIs untouched. To keep the adopted ENIs, skip `teardown` and remove the state files yourself.
 
@@ -156,6 +161,7 @@ done
 # sysctl
 sysctl -w net.ipv4.ip_forward=1
 sysctl -w net.ipv4.conf.all.rp_filter=0
+sysctl -w net.ipv4.conf.default.rp_filter=0
 sysctl -w net.ipv4.conf.cni0.rp_filter=0
 for iface in eth0 eth1 eth2 eth3 eth4 eth5 eth6 eth7; do
   sysctl -w net.ipv4.conf.${iface}.rp_filter=0
@@ -176,6 +182,7 @@ for iface in eth1 eth2 eth3 eth4 eth5 eth6 eth7; do
   iptables -A FORWARD -i $iface -o cni0 -j ACCEPT
   iptables -A FORWARD -i cni0 -o $iface -j ACCEPT
 done
+iptables -A FORWARD -i cni0 -o cni0 -j ACCEPT
 
 # NAT for outbound
 iptables -t nat -A POSTROUTING -s 172.20.100.0/24 ! -o cni0 -j MASQUERADE

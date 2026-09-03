@@ -13,14 +13,14 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--subnet` | (required) | VM subnet CIDR (e.g. `172.20.100.0/24`) |
 | `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and `adopt`, ignored on Volcengine (the pool is the ENI secondary IPs) |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
-| `--primary-nic` | auto-detect | Host primary NIC |
+| `--primary-nic` | `eth0` (Volcengine) / `ens4` (other platforms) | Host primary NIC |
 | `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
-| `--lease-file` | `/var/lib/cocoon/net/leases.json` | (daemon) DHCP lease persistence file |
+| `--lease-file` | `/var/lib/cocoon/net/leases.json` (independent of `--state-dir`) | (daemon) DHCP lease persistence file |
 | `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |
-| `--dry-run` | `false` | Preview changes without applying |
+| `--dry-run` | `false` | (`init`/`adopt`/`teardown`) Preview changes without applying |
 | `--skip-iptables` | `false` | (daemon) Skip iptables setup |
 | `--manage-iptables` | `false` | (adopt) Let cocoon-net write iptables rules |
 | `--metrics-addr` | `:9092` | (daemon) Prometheus listen address for `/metrics`; empty to disable |
@@ -72,7 +72,7 @@ Example file: [docs/pool-example.json](pool-example.json).
 | `gateway` | Gateway IP on `cni0` |
 | `primaryNIC` | Host primary NIC |
 | `secondaryNICs` | Volcengine only: `eth1`..`eth7` |
-| `ips` | Allocatable DHCP pool (excludes the gateway on GKE and `adopt`; on Volcengine it is the secondary IPs the ENIs report) |
+| `ips` | Allocatable DHCP pool: on GKE `init`/`adopt` it is up to `--pool-size` host addresses from the subnet, skipping the gateway and broadcast address; on Volcengine it is the secondary IPs the ENIs report |
 | `eniIDs` | Volcengine only: the pool ENIs `init` or `adopt` recorded; `teardown` deletes exactly these |
 | `aliasRangeName` | GKE only: the GCE secondary range the alias was bound from; empty for other platforms or adopted nodes |
 | `dnsServers` | DNS servers handed out by DHCP; empty on state written before this field existed (daemon falls back to built-in defaults) |

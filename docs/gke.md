@@ -90,7 +90,7 @@ sudo cocoon-net adopt \
 
 This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, applies the guest-agent route fix (local route removal plus the boot cron; `adopt` fails where `init` only warns), and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `AliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown warns that the alias is not present and the entry stays — remove it manually.
+After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `AliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown warns that the alias is not present and the entry stays — remove it manually. `teardown` also removes the boot cron job (`/etc/cron.d/cocoon-net-fix-alias`) that reapplies the guest-agent route fix, regardless of the alias outcome.
 
 ## Manual Steps (for reference)
 
@@ -139,6 +139,7 @@ ip link set cni0 up
 ```bash
 sysctl -w net.ipv4.ip_forward=1
 sysctl -w net.ipv4.conf.all.rp_filter=0
+sysctl -w net.ipv4.conf.default.rp_filter=0
 sysctl -w net.ipv4.conf.cni0.rp_filter=0
 sysctl -w net.ipv4.conf.ens4.rp_filter=0
 ```
@@ -162,10 +163,6 @@ cocoon-net daemon
 ```
 
 ### 8. CNI conflist
-
-> This manual block predates the traffic-isolation feature. `cocoon-net init` / `adopt` now
-> writes `portIsolation: true` and `macspoofchk: true` as well — see the current conflist in
-> [Architecture › CNI integration](architecture.md#cni-integration).
 
 ```bash
 cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
