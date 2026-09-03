@@ -11,8 +11,8 @@ VPC-routable IP directly from this server.
 - The pool of allocatable IPs comes from `pool.json` (the addresses the
   platform provisioner assigned at `init`/`adopt` time). GKE `init` and `adopt`
   derive up to `--pool-size` host addresses from the subnet, skipping the
-  gateway and the broadcast address (so a `/24` with the default pool-size of
-  140 yields 140 addresses, not all 253 usable host addresses); Volcengine
+  gateway and the broadcast address (so a `/24` with the `init` default pool-size of 140 yields 140 addresses
+while the `adopt` default of 253 covers every usable host address); Volcengine
   `init` and `adopt` use the secondary IPs its ENIs report.
 - Default lease time is 24 hours; expired leases are swept every minute.
 - A DHCPOFFER reserves an IP for 60 seconds; if no matching DHCPREQUEST
