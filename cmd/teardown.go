@@ -21,6 +21,7 @@ func newTeardownCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
+	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "lease persistence file")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
 
 	return cmd
@@ -64,9 +65,8 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		logger.Warnf(ctx, "delete pool state: %v", err)
 	}
 
-	leasePath := defaultLeaseFile
-	if err := os.Remove(leasePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		logger.Warnf(ctx, "delete lease file %s: %v", leasePath, err)
+	if err := os.Remove(flagLeaseFile); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		logger.Warnf(ctx, "delete lease file %s: %v", flagLeaseFile, err)
 	}
 
 	fmt.Printf("cocoon-net teardown complete (%s)\n", state.Platform)

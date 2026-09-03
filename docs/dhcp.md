@@ -127,7 +127,7 @@ The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
 
 On `cocoon-net teardown`, the cloud resources (ENIs on Volcengine, the alias
 range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and the
-default lease file `/var/lib/cocoon/net/leases.json` are all removed (on GKE the boot cron job that
-reapplies the guest-agent route fix is removed too); a daemon started with a
-custom `--lease-file` keeps that file. The `cni0` bridge, the FORWARD ACCEPT /
-NAT MASQUERADE rules, and the CNI conflist are left in place.
+lease file are all removed (on GKE the boot cron job that reapplies the
+guest-agent route fix is removed too). Pass the daemon's custom `--lease-file`
+to teardown to remove the same file. The `cni0` bridge, the FORWARD ACCEPT / NAT
+MASQUERADE rules, and the CNI conflist are left in place.
