@@ -25,7 +25,8 @@ VPC-routable IP directly from this server.
   `204` after a successful or already-completed release, `400` for an invalid
   MAC, and `500` when persistence fails; callers may safely retry a `500`.
 - Leases are persisted to the `--lease-file` (default
-  `/var/lib/cocoon/net/leases.json`) on every allocation/release, and
+  `/var/lib/cocoon/net/leases.json`, independent of `--state-dir` so
+  vk-cocoon's default reader path matches) on every allocation/release, and
   reloaded at daemon startup so a restart doesn't strand or double-assign
   leases.
 
@@ -125,8 +126,8 @@ The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
 `dnsmasq` or `dhcpd` already holding that port makes the daemon fail to start.
 
 On `cocoon-net teardown`, the cloud resources (ENIs on Volcengine, the alias
-range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and
-`<state-dir>/leases.json` are all removed (on GKE the boot cron job that
+range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and the
+default lease file `/var/lib/cocoon/net/leases.json` are all removed (on GKE the boot cron job that
 reapplies the guest-agent route fix is removed too); a daemon started with a
 custom `--lease-file` keeps that file. The `cni0` bridge, the FORWARD ACCEPT /
 NAT MASQUERADE rules, and the CNI conflist are left in place.

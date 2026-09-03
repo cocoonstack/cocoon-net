@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/projecteru2/core/log"
@@ -24,7 +25,6 @@ import (
 )
 
 const (
-	defaultLeaseFile     = "/var/lib/cocoon/net/leases.json"
 	defaultControlSocket = "/run/cocoon-net/control.sock"
 	defaultMetricsAddr   = ":9092"
 
@@ -52,7 +52,7 @@ they expire.`,
 		RunE: runDaemon,
 	}
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "directory containing pool.json")
-	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "path to lease persistence file")
+	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "lease persistence file")
 	cmd.Flags().StringVar(&flagControlSocket, "control-socket", cmp.Or(os.Getenv("COCOON_NET_CONTROL_SOCKET"), defaultControlSocket), "root-only Unix socket for local lease lifecycle operations (empty to disable)")
 	cmd.Flags().BoolVar(&flagSkipIPTables, "skip-iptables", false, "skip iptables setup (for pre-configured nodes)")
 	cmd.Flags().StringVar(&flagMetricsAddr, "metrics-addr", cmp.Or(os.Getenv("COCOON_NET_METRICS_ADDR"), defaultMetricsAddr), "prometheus metrics listen address (empty to disable)")
@@ -104,6 +104,9 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	}
 	dnsIPs := parseIPs(dnsList)
 
+	if err := os.MkdirAll(filepath.Dir(flagLeaseFile), 0o750); err != nil {
+		return fmt.Errorf("create lease dir: %w", err)
+	}
 	srv := dhcp.New(dhcp.Config{
 		Interface:     node.BridgeName,
 		Gateway:       gateway,
