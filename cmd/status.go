@@ -46,8 +46,8 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("IPs:        %d\n", len(state.IPs))
 	fmt.Printf("Updated:    %s\n", state.UpdatedAt.Format("2006-01-02T15:04:05Z"))
 	if status != nil {
-		if len(status.ENIIDs) > 0 {
-			fmt.Printf("ENIs:       %d\n", len(status.ENIIDs))
+		if len(status.ENIs) > 0 {
+			fmt.Printf("ENIs:       %d\n", len(status.ENIs))
 		}
 		if len(status.AliasRanges) > 0 {
 			fmt.Printf("Aliases:    %s\n", strings.Join(status.AliasRanges, ", "))

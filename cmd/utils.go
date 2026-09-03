@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -96,13 +95,11 @@ func resolveSubnet() error {
 }
 
 func splitTrim(s, sep string) []string {
-	parts := strings.Split(s, sep)
-	for i := range parts {
-		parts[i] = strings.TrimSpace(parts[i])
-	}
-	parts = slices.DeleteFunc(parts, func(p string) bool { return p == "" })
-	if len(parts) == 0 {
-		return nil
+	var parts []string
+	for p := range strings.SplitSeq(s, sep) {
+		if p = strings.TrimSpace(p); p != "" {
+			parts = append(parts, p)
+		}
 	}
 	return parts
 }

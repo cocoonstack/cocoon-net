@@ -60,8 +60,6 @@ type TeardownConfig struct {
 
 // PoolStatus holds live status information from the cloud platform.
 type PoolStatus struct {
-	ENIIDs []string
-	IPs    []string
 	// ENIs lists each ENI with its secondary IPs (Volcengine only).
 	ENIs []ENIStatus
 	// AliasRanges lists NAME:CIDR entries bound to the primary NIC (GKE only).

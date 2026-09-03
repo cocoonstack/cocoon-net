@@ -129,9 +129,7 @@ func serveMetrics(ctx context.Context, addr string, srv *dhcp.Server) {
 	logger := log.WithFunc("cmd.serveMetrics")
 
 	metrics.Register(prometheus.DefaultRegisterer)
-	prometheus.DefaultRegisterer.MustRegister(metrics.NewPoolCollector(func() metrics.PoolState {
-		return metrics.PoolState{Available: srv.PoolAvailable(), Active: srv.ActiveLeaseCount()}
-	}))
+	prometheus.DefaultRegisterer.MustRegister(metrics.PoolGauges(srv.PoolAvailable, srv.ActiveLeaseCount)...)
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())

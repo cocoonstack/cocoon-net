@@ -45,9 +45,5 @@ func setupSysctl(ctx context.Context, primaryNIC string, secondaryNICs []string)
 }
 
 func writeSysctl(key, val string) error {
-	return os.WriteFile(sysctlPath(key), []byte(val), filePerm) //nolint:gosec // sysctl tuning
-}
-
-func sysctlPath(key string) string {
-	return filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/"))
+	return os.WriteFile(filepath.Join(procSysBase, strings.ReplaceAll(key, ".", "/")), []byte(val), filePerm) //nolint:gosec // sysctl tuning
 }

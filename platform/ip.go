@@ -71,12 +71,7 @@ func HostPrefix(cidr, gateway string) (netip.Prefix, netip.Addr, netip.Addr, err
 	netAddr := prefix.Masked().Addr().As4()
 	bits := prefix.Bits()
 	hostBits := uint32(32 - bits) //nolint:gosec // bits ∈ [0,32] from ParsePrefix
-	var hostMask uint32
-	if hostBits == 32 {
-		hostMask = 0xFFFFFFFF
-	} else {
-		hostMask = (uint32(1) << hostBits) - 1
-	}
+	hostMask := (uint32(1) << hostBits) - 1
 	netUint := binary.BigEndian.Uint32(netAddr[:])
 	var bcastBytes [4]byte
 	binary.BigEndian.PutUint32(bcastBytes[:], netUint|hostMask)
