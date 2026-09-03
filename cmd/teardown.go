@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
@@ -13,8 +12,6 @@ import (
 	"github.com/cocoonstack/cocoon-net/node"
 	"github.com/cocoonstack/cocoon-net/platform"
 )
-
-const leaseFileName = "leases.json"
 
 func newTeardownCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -67,7 +64,7 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		logger.Warnf(ctx, "delete pool state: %v", err)
 	}
 
-	leasePath := filepath.Join(flagStateDir, leaseFileName)
+	leasePath := defaultLeaseFile
 	if err := os.Remove(leasePath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		logger.Warnf(ctx, "delete lease file %s: %v", leasePath, err)
 	}
