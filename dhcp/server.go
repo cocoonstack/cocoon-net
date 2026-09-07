@@ -2,6 +2,7 @@
 package dhcp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -51,9 +52,7 @@ type Server struct {
 
 // New creates a DHCP server. IPs are the allocatable pool (excluding gateway).
 func New(conf Config, ips []net.IP) *Server {
-	if conf.LeaseTime == 0 {
-		conf.LeaseTime = defaultLeaseTime
-	}
+	conf.LeaseTime = cmp.Or(conf.LeaseTime, defaultLeaseTime)
 	return &Server{
 		conf:   conf,
 		pool:   newIPPool(ips),
