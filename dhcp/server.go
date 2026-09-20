@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"sync"
 	"time"
@@ -72,9 +73,12 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 	s.linkIndex = linkIdx
 
-	if err := s.leases.load(); err != nil {
-		logger.Warnf(ctx, "load leases: %v (starting fresh)", err)
-	} else {
+	switch err := s.leases.load(); {
+	case errors.Is(err, fs.ErrNotExist):
+		logger.Infof(ctx, "no lease file at %s, starting fresh", s.conf.LeaseFile)
+	case err != nil:
+		logger.Error(ctx, err, "load leases, starting with an empty table")
+	default:
 		s.restoreLeases(ctx)
 	}
 

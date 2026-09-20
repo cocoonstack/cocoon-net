@@ -1,11 +1,30 @@
 package dhcp
 
 import (
+	"errors"
+	"io/fs"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+func TestLoadNamesAMissingFileAndABrokenOneApart(t *testing.T) {
+	t.Parallel()
+
+	missing := newLeaseStore(filepath.Join(t.TempDir(), "leases.json"))
+	if err := missing.load(); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("load(missing) = %v, want fs.ErrNotExist", err)
+	}
+	broken := filepath.Join(t.TempDir(), "leases.json")
+	if err := os.WriteFile(broken, []byte("{"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := newLeaseStore(broken).load(); err == nil || errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("load(broken) = %v, want a parse error that is not fs.ErrNotExist", err)
+	}
+}
 
 func TestLeaseStore_AddNoEviction(t *testing.T) {
 	t.Parallel()
