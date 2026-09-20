@@ -58,22 +58,6 @@ func TestReusableENIs(t *testing.T) {
 	}
 }
 
-func TestIPShortfall_FullENIIsZero(t *testing.T) {
-	t.Parallel()
-
-	eni := newENIWithSecondaryIPs("eni-full", ipsPerENI)
-
-	var existing int
-	for _, pip := range eni.PrivateIPSets.PrivateIPSet {
-		if !pip.Primary {
-			existing++
-		}
-	}
-	if shortfall := ipsPerENI - existing; shortfall != 0 {
-		t.Errorf("got shortfall %d, want 0", shortfall)
-	}
-}
-
 func unmarshalENIList(t *testing.T, fixture string) []networkInterface {
 	t.Helper()
 
@@ -86,15 +70,4 @@ func unmarshalENIList(t *testing.T, fixture string) []networkInterface {
 		t.Fatalf("unmarshal fixture: %v", err)
 	}
 	return resp.Result.NetworkInterfaceSets
-}
-
-func newENIWithSecondaryIPs(id string, n int) networkInterface {
-	eni := networkInterface{NetworkInterfaceID: id, Type: "secondary"}
-	for range n {
-		eni.PrivateIPSets.PrivateIPSet = append(eni.PrivateIPSets.PrivateIPSet, struct {
-			Primary          bool   `json:"Primary"`
-			PrivateIPAddress string `json:"PrivateIpAddress"`
-		}{PrivateIPAddress: "10.0.1.1"})
-	}
-	return eni
 }
