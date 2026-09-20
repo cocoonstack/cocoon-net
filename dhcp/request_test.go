@@ -25,7 +25,7 @@ func TestHandleRequestRecordsOK(t *testing.T) {
 	reqIP := net.ParseIP("10.0.0.10").To4()
 
 	okBefore, failBefore := leaseCounts()
-	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac, time.Now())
 	okAfter, failAfter := leaseCounts()
 
 	if okAfter-okBefore != 1 || failAfter != failBefore {
@@ -42,10 +42,10 @@ func TestHandleRequestRecordsFailed(t *testing.T) {
 
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	reqIP := net.ParseIP("10.0.0.10").To4()
-	srv.leases.add(mustMAC(t, "aa:bb:cc:dd:ee:99"), reqIP, time.Hour)
+	srv.leases.add(mustMAC(t, "aa:bb:cc:dd:ee:99"), reqIP, time.Hour, time.Now())
 
 	okBefore, failBefore := leaseCounts()
-	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac, time.Now())
 	okAfter, failAfter := leaseCounts()
 
 	if failAfter-failBefore != 1 || okAfter != okBefore {
@@ -65,7 +65,7 @@ func TestHandleRequestNoIPNotCounted(t *testing.T) {
 	msg.ClientHWAddr = mac
 
 	okBefore, failBefore := leaseCounts()
-	srv.handleRequest(t.Context(), conn, peer, msg, mac)
+	srv.handleRequest(t.Context(), conn, peer, msg, mac, time.Now())
 	okAfter, failAfter := leaseCounts()
 
 	if okAfter != okBefore || failAfter != failBefore {
@@ -83,7 +83,7 @@ func TestHandleRequestPersistsBeforeACK(t *testing.T) {
 
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	reqIP := net.ParseIP("10.0.0.10").To4()
-	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac)
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, reqIP), mac, time.Now())
 
 	reloaded := newLeaseStore(srv.conf.LeaseFile)
 	if err := reloaded.load(); err != nil {
@@ -109,7 +109,7 @@ func TestHandleRequestRetriesPersistenceBeforeACK(t *testing.T) {
 	reqIP := net.ParseIP("10.0.0.10").To4()
 	msg := requestMsg(t, mac, reqIP)
 
-	srv.handleRequest(t.Context(), packetConn, peer, msg, mac)
+	srv.handleRequest(t.Context(), packetConn, peer, msg, mac, time.Now())
 	if packetConn.writes != 0 {
 		t.Fatalf("got %d replies after persistence failed, want 0", packetConn.writes)
 	}
@@ -120,7 +120,7 @@ func TestHandleRequestRetriesPersistenceBeforeACK(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(leaseFile), 0o755); err != nil {
 		t.Fatalf("create lease directory: %v", err)
 	}
-	srv.handleRequest(t.Context(), packetConn, peer, msg, mac)
+	srv.handleRequest(t.Context(), packetConn, peer, msg, mac, time.Now())
 	if packetConn.writes != 1 {
 		t.Fatalf("got %d replies after persistence recovered, want 1", packetConn.writes)
 	}

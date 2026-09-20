@@ -14,7 +14,7 @@ func TestLeaseStore_AddNoEviction(t *testing.T) {
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	ip := net.ParseIP("10.0.0.10").To4()
 
-	evicted := s.add(mac, ip, time.Hour)
+	evicted := s.add(mac, ip, time.Hour, time.Now())
 	if len(evicted) != 0 {
 		t.Fatalf("first add should not evict, got %d", len(evicted))
 	}
@@ -31,8 +31,8 @@ func TestLeaseStore_AddRebindSameMACDifferentIP(t *testing.T) {
 	oldIP := net.ParseIP("10.0.0.10").To4()
 	newIP := net.ParseIP("10.0.0.11").To4()
 
-	s.add(mac, oldIP, time.Hour)
-	evicted := s.add(mac, newIP, time.Hour)
+	s.add(mac, oldIP, time.Hour, time.Now())
+	evicted := s.add(mac, newIP, time.Hour, time.Now())
 
 	if len(evicted) != 1 {
 		t.Fatalf("rebind should report 1 displaced lease, got %d", len(evicted))
@@ -55,8 +55,8 @@ func TestLeaseStore_AddSameMACSameIP(t *testing.T) {
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	ip := net.ParseIP("10.0.0.10").To4()
 
-	s.add(mac, ip, time.Hour)
-	evicted := s.add(mac, ip, time.Hour)
+	s.add(mac, ip, time.Hour, time.Now())
+	evicted := s.add(mac, ip, time.Hour, time.Now())
 	if len(evicted) != 0 {
 		t.Fatalf("renewal should not evict, got %d", len(evicted))
 	}
@@ -70,8 +70,8 @@ func TestLeaseStore_AddOtherMACSameIP(t *testing.T) {
 	macB := mustMAC(t, "aa:bb:cc:dd:ee:02")
 	ip := net.ParseIP("10.0.0.10").To4()
 
-	s.add(macA, ip, time.Hour)
-	evicted := s.add(macB, ip, time.Hour)
+	s.add(macA, ip, time.Hour, time.Now())
+	evicted := s.add(macB, ip, time.Hour, time.Now())
 
 	if len(evicted) != 1 {
 		t.Fatalf("conflicting add should evict the other MAC, got %d", len(evicted))
@@ -98,9 +98,9 @@ func TestLeaseStore_AddOtherMACSameIPExpired(t *testing.T) {
 	macB := mustMAC(t, "aa:bb:cc:dd:ee:02")
 	ip := net.ParseIP("10.0.0.10").To4()
 
-	s.add(macA, ip, -time.Hour)
+	s.add(macA, ip, -time.Hour, time.Now())
 
-	evicted := s.add(macB, ip, time.Hour)
+	evicted := s.add(macB, ip, time.Hour, time.Now())
 	if len(evicted) != 1 || evicted[0].MAC != macA.String() {
 		t.Fatalf("expired other-MAC entry must be evicted so the sweep cannot reclaim macB's IP, got %v", evicted)
 	}
@@ -116,7 +116,7 @@ func TestLeaseStore_SaveLoadRoundtrip(t *testing.T) {
 	src := newLeaseStore(path)
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	ip := net.ParseIP("10.0.0.10").To4()
-	src.add(mac, ip, time.Hour)
+	src.add(mac, ip, time.Hour, time.Now())
 	if err := src.save(); err != nil {
 		t.Fatalf("save: %v", err)
 	}

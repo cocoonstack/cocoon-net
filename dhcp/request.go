@@ -3,6 +3,7 @@ package dhcp
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/insomniacslk/dhcp/dhcpv4"
 	"github.com/projecteru2/core/log"
@@ -10,7 +11,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
-func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr) {
+func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, mac net.HardwareAddr, arrived time.Time) {
 	logger := log.WithFunc("dhcp.handleRequest")
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
@@ -21,6 +22,10 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	}
 	if reqIP == nil || reqIP.IsUnspecified() {
 		logger.Warnf(ctx, "REQUEST from %s: no IP requested", mac)
+		return
+	}
+	if l := s.leases.active(mac); l != nil && l.Granted.After(arrived) {
+		logger.Infof(ctx, "ignored REQUEST from %s: a later REQUEST holds the lease", mac)
 		return
 	}
 
@@ -63,7 +68,7 @@ func (s *Server) handleRequest(ctx context.Context, conn net.PacketConn, peer ne
 	if oldIP := s.offers.remove(mac); oldIP != nil && !oldIP.Equal(reqIP) {
 		s.pool.release(oldIP)
 	}
-	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime) {
+	for _, e := range s.leases.add(mac, reqIP, s.conf.LeaseTime, arrived) {
 		if e.MAC == mac.String() {
 			s.freeIP(ctx, e.IP)
 			logger.Warnf(ctx, "rebound %s from %s to %s; released old IP", mac, e.IP, reqIP)

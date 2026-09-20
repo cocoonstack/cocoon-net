@@ -20,7 +20,7 @@ func TestReleaseLeaseReclaimsRouteAndPoolSlot(t *testing.T) {
 	if !srv.pool.tryClaim(ip) {
 		t.Fatal("claim test IP")
 	}
-	srv.leases.add(mac, ip, time.Hour)
+	srv.leases.add(mac, ip, time.Hour, time.Now())
 
 	orig := delRouteFn
 	var deleted net.IP
@@ -72,7 +72,7 @@ func TestReleaseLeaseStillReclaimsWhenRouteDeleteFails(t *testing.T) {
 	if !srv.pool.tryClaim(ip) {
 		t.Fatal("claim test IP")
 	}
-	srv.leases.add(mac, ip, time.Hour)
+	srv.leases.add(mac, ip, time.Hour, time.Now())
 
 	orig := delRouteFn
 	delRouteFn = func(net.IP, int) error { return errors.New("route gone") }
@@ -97,7 +97,7 @@ func TestReleaseLeaseRollsBackWhenPersistenceFails(t *testing.T) {
 	if !srv.pool.tryClaim(ip) {
 		t.Fatal("claim test IP")
 	}
-	srv.leases.add(mac, ip, time.Hour)
+	srv.leases.add(mac, ip, time.Hour, time.Now())
 
 	orig := delRouteFn
 	deleteCalls := 0
@@ -132,7 +132,7 @@ func TestHandleReleaseRequiresTheLeasedSource(t *testing.T) {
 	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	ip := net.ParseIP("10.0.0.10").To4()
 	srv.pool.tryClaim(ip)
-	srv.leases.add(mac, ip, time.Hour)
+	srv.leases.add(mac, ip, time.Hour, time.Now())
 	msg, err := dhcpv4.New(dhcpv4.WithMessageType(dhcpv4.MessageTypeRelease))
 	if err != nil {
 		t.Fatalf("build release: %v", err)
@@ -140,16 +140,86 @@ func TestHandleReleaseRequiresTheLeasedSource(t *testing.T) {
 	msg.ClientHWAddr = mac
 	msg.ClientIPAddr = ip
 
-	srv.handleRelease(t.Context(), &net.UDPAddr{IP: net.ParseIP("10.0.0.11").To4(), Port: 68}, msg, mac)
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: net.ParseIP("10.0.0.11").To4(), Port: 68}, msg, mac, time.Now())
 	if got := srv.leases.ipForMAC(mac); !got.Equal(ip) {
 		t.Fatalf("RELEASE from another address freed the lease: %v", got)
 	}
 
-	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, msg, mac)
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, msg, mac, time.Now())
 	if got := srv.leases.ipForMAC(mac); got != nil {
 		t.Fatalf("RELEASE from the leased address was ignored: %s", got)
 	}
 	if got := srv.pool.freeCount(); got != 2 {
 		t.Fatalf("free = %d, want 2", got)
 	}
+}
+
+func TestHandleReleaseIgnoresAReleaseThatArrivedBeforeTheGrant(t *testing.T) {
+	srv, conn, peer, mac, ip, release := newReleaseRaceFixture(t)
+	defer conn.Close()
+	requested := time.Now().Add(-10 * time.Minute)
+
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, ip), mac, requested)
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, release, mac, requested.Add(-5*time.Minute))
+
+	if got := srv.leases.ipForMAC(mac); !got.Equal(ip) {
+		t.Fatalf("a RELEASE that arrived before the REQUEST freed the new lease: got %v", got)
+	}
+	if got := srv.pool.freeCount(); got != 1 {
+		t.Fatalf("free = %d, want 1", got)
+	}
+}
+
+func TestHandleReleaseHonorsAReleaseThatArrivedAfterTheGrant(t *testing.T) {
+	srv, conn, peer, mac, ip, release := newReleaseRaceFixture(t)
+	defer conn.Close()
+	requested := time.Now().Add(-10 * time.Minute)
+
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, ip), mac, requested)
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, release, mac, requested.Add(5*time.Minute))
+
+	if got := srv.leases.ipForMAC(mac); got != nil {
+		t.Fatalf("a RELEASE that arrived after the REQUEST was dropped: lease still %v", got)
+	}
+	if got := srv.pool.freeCount(); got != 2 {
+		t.Fatalf("free = %d, want 2", got)
+	}
+}
+
+func TestHandleRequestIgnoresARequestOlderThanTheLease(t *testing.T) {
+	srv, conn, peer, mac, ip, release := newReleaseRaceFixture(t)
+	defer conn.Close()
+	first := time.Now().Add(-10 * time.Minute)
+	second := first.Add(4 * time.Minute)
+
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, ip), mac, second)
+	srv.handleRequest(t.Context(), conn, peer, requestMsg(t, mac, ip), mac, first)
+	if got := srv.leases.active(mac); got == nil || !got.Granted.Equal(second) {
+		t.Fatalf("an older REQUEST moved the grant backwards: %+v", got)
+	}
+	srv.handleRelease(t.Context(), &net.UDPAddr{IP: ip, Port: 68}, release, mac, first.Add(2*time.Minute))
+	if got := srv.leases.ipForMAC(mac); !got.Equal(ip) {
+		t.Fatalf("a RELEASE that arrived between the two REQUESTs freed the lease: got %v", got)
+	}
+}
+
+func newReleaseRaceFixture(t *testing.T) (*Server, net.PacketConn, net.Addr, net.HardwareAddr, net.IP, *dhcpv4.DHCPv4) {
+	t.Helper()
+	srv, conn, peer := newTestServer(t)
+	origAdd, origDel := addRouteFn, delRouteFn
+	addRouteFn = func(net.IP, int) error { return nil }
+	delRouteFn = func(net.IP, int) error { return nil }
+	t.Cleanup(func() { addRouteFn, delRouteFn = origAdd, origDel })
+
+	mac := mustMAC(t, "aa:bb:cc:dd:ee:01")
+	ip := net.ParseIP("10.0.0.10").To4()
+	srv.pool.tryClaim(ip)
+	srv.leases.add(mac, ip, time.Hour, time.Now().Add(-30*time.Minute))
+	release, err := dhcpv4.New(dhcpv4.WithMessageType(dhcpv4.MessageTypeRelease))
+	if err != nil {
+		t.Fatalf("build release: %v", err)
+	}
+	release.ClientHWAddr = mac
+	release.ClientIPAddr = ip
+	return srv, conn, peer, mac, ip, release
 }

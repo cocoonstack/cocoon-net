@@ -14,9 +14,10 @@ import (
 const leaseFilePerm = 0o644
 
 type lease struct {
-	MAC    net.HardwareAddr
-	IP     net.IP
-	Expiry time.Time
+	MAC     net.HardwareAddr
+	IP      net.IP
+	Expiry  time.Time
+	Granted time.Time
 }
 
 type leaseEntry struct {
@@ -44,10 +45,9 @@ func newLeaseStore(filePath string) *leaseStore {
 	}
 }
 
-func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration) []evictedLease {
+func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration, granted time.Time) []evictedLease {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	now := time.Now()
 	key := mac.String()
 	newIP := ip.To4()
 	var evicted []evictedLease
@@ -64,11 +64,22 @@ func (s *leaseStore) add(mac net.HardwareAddr, ip net.IP, duration time.Duration
 	}
 
 	s.leases[key] = &lease{
-		MAC:    mac,
-		IP:     newIP,
-		Expiry: now.Add(duration),
+		MAC:     mac,
+		IP:      newIP,
+		Expiry:  granted.Add(duration),
+		Granted: granted,
 	}
 	return evicted
+}
+
+func (s *leaseStore) active(mac net.HardwareAddr) *lease {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if l, ok := s.leases[mac.String()]; ok && time.Now().Before(l.Expiry) {
+		cp := *l
+		return &cp
+	}
+	return nil
 }
 
 // take also returns an expired entry so an explicit release reclaims its slot before the sweep.

@@ -19,6 +19,7 @@ const (
 	defaultLeaseTime     = 24 * time.Hour
 	leaseCleanupInterval = time.Minute
 	offerTimeout         = 60 * time.Second
+	datagramSize         = 4096
 )
 
 // route ops are vars so tests can stub the netlink calls
@@ -85,10 +86,7 @@ func (s *Server) Run(ctx context.Context) error {
 	defer cancelRun()
 
 	laddr := &net.UDPAddr{IP: net.IPv4zero, Port: dhcpv4.ServerPort}
-	srv, err := server4.NewServer(s.conf.Interface, laddr,
-		func(conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
-			s.handler(ctx, conn, peer, msg)
-		})
+	conn, err := server4.NewIPv4UDPConn(s.conf.Interface, laddr)
 	if err != nil {
 		return fmt.Errorf("create DHCP server: %w", err)
 	}
@@ -99,7 +97,7 @@ func (s *Server) Run(ctx context.Context) error {
 	go s.cleanupLoop(runCtx)
 
 	errCh := make(chan error, 1)
-	go func() { errCh <- srv.Serve() }()
+	go func() { errCh <- s.serve(ctx, conn) }()
 	var controlErrCh <-chan error
 	if control != nil {
 		controlErrCh = control.serve(runCtx)
@@ -107,7 +105,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	select {
 	case <-ctx.Done():
-		_ = srv.Close()
+		_ = conn.Close()
 		cancelRun()
 		if control != nil {
 			if err := <-controlErrCh; err != nil {
@@ -122,7 +120,7 @@ func (s *Server) Run(ctx context.Context) error {
 		cancelRun()
 		return fmt.Errorf("DHCP server: %w", err)
 	case err := <-controlErrCh:
-		_ = srv.Close()
+		_ = conn.Close()
 		cancelRun()
 		if err == nil {
 			if ctx.Err() != nil {
@@ -141,7 +139,25 @@ func (s *Server) PoolAvailable() int { return s.pool.freeCount() }
 // ActiveLeaseCount returns the number of unexpired leases, read per metrics scrape.
 func (s *Server) ActiveLeaseCount() int { return s.leases.activeCount() }
 
-func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4) {
+func (s *Server) serve(ctx context.Context, conn net.PacketConn) error {
+	logger := log.WithFunc("dhcp.serve")
+	for {
+		buf := make([]byte, datagramSize)
+		n, peer, err := conn.ReadFrom(buf)
+		if err != nil {
+			return err
+		}
+		arrived := time.Now()
+		msg, err := dhcpv4.FromBytes(buf[:n])
+		if err != nil {
+			logger.Warnf(ctx, "drop malformed packet from %s: %v", peer, err)
+			continue
+		}
+		go s.handler(ctx, conn, replyPeer(peer), msg, arrived)
+	}
+}
+
+func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr, msg *dhcpv4.DHCPv4, arrived time.Time) {
 	if msg.OpCode != dhcpv4.OpcodeBootRequest {
 		return
 	}
@@ -152,8 +168,15 @@ func (s *Server) handler(ctx context.Context, conn net.PacketConn, peer net.Addr
 	case dhcpv4.MessageTypeDiscover:
 		s.handleDiscover(ctx, conn, peer, msg, mac)
 	case dhcpv4.MessageTypeRequest:
-		s.handleRequest(ctx, conn, peer, msg, mac)
+		s.handleRequest(ctx, conn, peer, msg, mac, arrived)
 	case dhcpv4.MessageTypeRelease:
-		s.handleRelease(ctx, peer, msg, mac)
+		s.handleRelease(ctx, peer, msg, mac, arrived)
 	}
+}
+
+func replyPeer(peer net.Addr) net.Addr {
+	if src, ok := peer.(*net.UDPAddr); ok && (src.IP == nil || src.IP.IsUnspecified()) {
+		return &net.UDPAddr{IP: net.IPv4bcast, Port: src.Port}
+	}
+	return peer
 }
