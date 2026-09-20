@@ -94,6 +94,16 @@ func resolveSubnet() error {
 	return nil
 }
 
+func parseDNSFlag() ([]string, error) {
+	servers := splitTrim(flagDNS, ",")
+	for _, s := range servers {
+		if net.ParseIP(s).To4() == nil {
+			return nil, fmt.Errorf("--dns entry %q is not an IPv4 address", s)
+		}
+	}
+	return servers, nil
+}
+
 func splitTrim(s, sep string) []string {
 	var parts []string
 	for p := range strings.SplitSeq(s, sep) {

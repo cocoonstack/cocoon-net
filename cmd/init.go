@@ -34,7 +34,10 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err := resolveSubnet(); err != nil {
 		return err
 	}
-	dnsServers := splitTrim(flagDNS, ",")
+	dnsServers, err := parseDNSFlag()
+	if err != nil {
+		return err
+	}
 
 	cfg := &platform.Config{
 		NodeName:   flagNodeName,
@@ -69,7 +72,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	}
 	if _, loadErr := pool.Load(ctx, flagStateDir); loadErr != nil {
 		// a first provisioning that fails midway still leaves teardown something to act on
-		if err := state.Save(ctx); err != nil {
+		if err = state.Save(ctx); err != nil {
 			return fmt.Errorf("save seed pool state: %w", err)
 		}
 	}

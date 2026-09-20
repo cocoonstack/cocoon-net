@@ -61,3 +61,29 @@ func TestResolveSubnet(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDNSFlagRejectsNonIPv4(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    []string
+		wantErr bool
+	}{
+		{"two servers", "8.8.8.8, 1.1.1.1", []string{"8.8.8.8", "1.1.1.1"}, false},
+		{"empty list", "", nil, false},
+		{"typo", "8.8.8.8,1.1.1.1x", nil, true},
+		{"ipv6", "2001:4860:4860::8888", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flagDNS = tt.in
+			got, err := parseDNSFlag()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseDNSFlag(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("parseDNSFlag(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}

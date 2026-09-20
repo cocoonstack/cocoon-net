@@ -45,7 +45,10 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err := resolveSubnet(); err != nil {
 		return err
 	}
-	dnsServers := splitTrim(flagDNS, ",")
+	dnsServers, err := parseDNSFlag()
+	if err != nil {
+		return err
+	}
 
 	gateway, err := platform.ResolveGateway(flagGateway, flagSubnet)
 	if err != nil {
