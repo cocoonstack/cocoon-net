@@ -42,7 +42,7 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")
 	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
 	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (default: eth0 on volcengine, ens4 otherwise)")
-	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
+	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated IPv4 DNS servers for DHCP clients")
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
 	cmd.Flags().BoolVar(&flagDropInternal, "drop-internal-access", false, "block VM-to-VM traffic within the cocoon subnet")

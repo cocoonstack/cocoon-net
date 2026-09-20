@@ -29,7 +29,9 @@ VPC-routable IP directly from this server.
   `/var/lib/cocoon/net/leases.json`, independent of `--state-dir` so
   vk-cocoon's default reader path matches) on every allocation/release, and
   reloaded at daemon startup so a restart doesn't strand or double-assign
-  leases.
+  leases. A missing lease file is a normal first start; a lease file that
+  cannot be read or parsed is logged at Error and the daemon starts with an
+  empty table.
 
 ### Lease file format
 
@@ -60,7 +62,9 @@ IP is immediately reachable:
 - **Lease granted** -- adds a `/32` route for the VM's IP via `cni0`.
 - **Lease released or expired** -- removes the `/32` route. A DHCPRELEASE
   counts only when it arrives from the leased address with `ciaddr` set to it;
-  the client hardware address alone is not trusted.
+  the client hardware address alone is not trusted. A release is also dropped
+  when the lease it names was granted after the release packet arrived, so a
+  release that a renewal overtook cannot free the new lease.
 
 This keeps the kernel routing table minimal (only currently-leased IPs are
 routed) and means a VM's IP is reachable within the VPC as soon as it has a

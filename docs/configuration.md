@@ -14,7 +14,7 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--pool-size` | `140` (init) / `253` (adopt) | Number of IPs in the pool; read by GKE `init` and `adopt`, ignored on Volcengine (the pool is the ENI secondary IPs) |
 | `--gateway` | first IP in subnet | Gateway IP on `cni0` |
 | `--primary-nic` | `eth0` (Volcengine) / `ens4` (other platforms) | Host primary NIC |
-| `--dns` | `8.8.8.8,1.1.1.1` | DNS servers for DHCP clients |
+| `--dns` | `8.8.8.8,1.1.1.1` | Comma-separated DNS servers for DHCP clients; every entry must be an IPv4 address or `init`/`adopt` fail |
 | `--state-dir` | `/var/lib/cocoon/net` | State directory for `pool.json` |
 | `--lease-file` | `/var/lib/cocoon/net/leases.json` (independent of `--state-dir`) | (daemon/teardown) DHCP lease persistence file |
 | `--control-socket` | `/run/cocoon-net/control.sock` | (daemon) Root-only Unix socket used by local VM lifecycle managers to reclaim leases; empty to disable |
