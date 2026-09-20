@@ -1,8 +1,14 @@
 package volcengine
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -58,6 +64,46 @@ func TestReusableENIs(t *testing.T) {
 	}
 }
 
+func TestEnsureENIsDeletesTheOrphanWhenTheAttachIsCanceled(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "calls.log")
+	attached := filepath.Join(dir, "attached")
+	script := `#!/bin/sh
+printf '%s\n' "$*" >> "$VE_TEST_LOG"
+case "$*" in
+  *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-orphan"}}' ;;
+  *AttachNetworkInterface*) : > "$VE_TEST_ATTACHED"; sleep 5 ;;
+  *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write ve stub: %v", err)
+	}
+	t.Setenv("PATH", dir+":/bin:/usr/bin")
+	t.Setenv("VE_TEST_LOG", logPath)
+	t.Setenv("VE_TEST_ATTACHED", attached)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+		done <- err
+	}()
+	waitForFile(t, attached)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want the cancellation", err)
+	}
+	calls, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("read calls: %v", readErr)
+	}
+	if !strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-orphan") {
+		t.Fatalf("orphan ENI not deleted after the canceled attach, calls:\n%s", calls)
+	}
+}
+
 func unmarshalENIList(t *testing.T, fixture string) []networkInterface {
 	t.Helper()
 
@@ -70,4 +116,18 @@ func unmarshalENIList(t *testing.T, fixture string) []networkInterface {
 		t.Fatalf("unmarshal fixture: %v", err)
 	}
 	return resp.Result.NetworkInterfaceSets
+}
+
+func waitForFile(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never appeared", path)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
