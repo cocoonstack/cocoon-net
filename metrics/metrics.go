@@ -22,7 +22,6 @@ var (
 		[]string{"result"},
 	)
 
-	// SecondaryNICs reports the pool's secondary NICs by state so a missing ENI is visible.
 	SecondaryNICs = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
