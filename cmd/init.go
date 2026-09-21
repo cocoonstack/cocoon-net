@@ -39,11 +39,15 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	poolSize, err := cmd.Flags().GetInt("pool-size")
+	if err != nil {
+		return err
+	}
 
 	cfg := &platform.Config{
 		NodeName:   flagNodeName,
 		SubnetCIDR: flagSubnet,
-		PoolSize:   flagPoolSize,
+		PoolSize:   poolSize,
 		Gateway:    flagGateway,
 		PrimaryNIC: flagPrimaryNIC,
 	}

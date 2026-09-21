@@ -23,7 +23,6 @@ var (
 	flagPlatform     string
 	flagNodeName     string
 	flagSubnet       string
-	flagPoolSize     int
 	flagGateway      string
 	flagPrimaryNIC   string
 	flagDNS          string
@@ -41,7 +40,7 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine); auto-detected from instance metadata if omitted")
 	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
 	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
-	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")
+	cmd.Flags().Int("pool-size", defaultPoolSize, "number of IPs in the pool")
 	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
 	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (default: eth0 on volcengine, ens4 otherwise)")
 	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated IPv4 DNS servers for DHCP clients")

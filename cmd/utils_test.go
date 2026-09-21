@@ -97,3 +97,17 @@ func TestParseDNSFlagRejectsNonIPv4(t *testing.T) {
 		})
 	}
 }
+
+func TestInitAndAdoptKeepTheirOwnPoolSizeDefaults(t *testing.T) {
+	root := NewRootCmd()
+	for name, want := range map[string]int{"init": 140, "adopt": 253} {
+		sub, _, err := root.Find([]string{name})
+		if err != nil {
+			t.Fatalf("find %s: %v", name, err)
+		}
+		got, err := sub.Flags().GetInt("pool-size")
+		if err != nil || got != want {
+			t.Fatalf("%s pool-size = %d, %v, want %d", name, got, err, want)
+		}
+	}
+}
