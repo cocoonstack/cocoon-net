@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
 const (
@@ -43,10 +46,14 @@ type Config struct {
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
-	if len(cfg.SecondaryNICs) > 0 {
-		logger.Infof(ctx, "secondary NICs: %v", cfg.SecondaryNICs)
+	nics, err := usableSecondaryNICs(ctx, cfg.SecondaryNICs, PresentLinks(cfg.SecondaryNICs))
+	if err != nil {
+		return err
 	}
-	if err := setupSecondaryNICs(cfg.SecondaryNICs); err != nil {
+	if len(nics) > 0 {
+		logger.Infof(ctx, "secondary NICs: %v", nics)
+	}
+	if err := setupSecondaryNICs(nics); err != nil {
 		return fmt.Errorf("secondary NICs: %w", err)
 	}
 
@@ -54,13 +61,13 @@ func Setup(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs); err != nil {
+	if err := setupSysctl(ctx, cfg.PrimaryNIC, nics); err != nil {
 		return fmt.Errorf("sysctl: %w", err)
 	}
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
-	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs, cfg.DropInternalAccess, cfg.DropCIDRs); err != nil {
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, nics, cfg.DropInternalAccess, cfg.DropCIDRs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
@@ -111,4 +118,18 @@ func writeCNIConflist(ctx context.Context) error {
 	}
 	logger.Infof(ctx, "wrote CNI conflist to %s", confPath)
 	return nil
+}
+
+func usableSecondaryNICs(ctx context.Context, expected, present []string) ([]string, error) {
+	metrics.SecondaryNICs.WithLabelValues("expected").Set(float64(len(expected)))
+	metrics.SecondaryNICs.WithLabelValues("present").Set(float64(len(present)))
+	if len(expected) > 0 && len(present) == 0 {
+		return nil, fmt.Errorf("none of the secondary NICs %v is present", expected)
+	}
+	for _, nic := range expected {
+		if !slices.Contains(present, nic) {
+			log.WithFunc("node.usableSecondaryNICs").Warnf(ctx, "secondary NIC %s is missing; the pool IPs behind it stay unreachable until it is re-attached", nic)
+		}
+	}
+	return present, nil
 }

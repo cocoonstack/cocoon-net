@@ -268,6 +268,7 @@ ve vpc AuthorizeSecurityGroupIngress \
 | VM has IP but not reachable cross-host | `ethX` interfaces DOWN | `ip link set ethX up` |
 | DHCP offers wrong subnet | Pool state has IPs from wrong subnet | Re-run `cocoon-net init` or `adopt` with correct `--subnet` |
 | `InsufficientIpInSubnet` on IP assign | Orphaned ENIs consuming IPs | Delete detached ENIs in the subnet |
+| Daemon logs `secondary NIC ethN is missing` | An ENI was detached out of band; the daemon serves on the remaining ENIs and `cocoon_net_secondary_nics` shows the gap | Re-attach the ENI or re-run `adopt`; the pool IPs behind the missing ENI stay unreachable meanwhile |
 | Windows no DHCP, SAC stuck | Wrong cloud-hypervisor version | Use cocoon fork from cocoonstack/cloud-hypervisor |
 
 ## Adding More Nodes
