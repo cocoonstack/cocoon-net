@@ -13,11 +13,12 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string) error {
+func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string, mtu int) error {
 	logger := log.WithFunc("node.setupBridge")
 
 	br := &netlink.Bridge{
 		Name: BridgeName,
+		MTU:  mtu,
 	}
 	if err := netlink.LinkAdd(br); err != nil && !errors.Is(err, syscall.EEXIST) {
 		return fmt.Errorf("create bridge %s: %w", BridgeName, err)
@@ -26,6 +27,11 @@ func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string) error {
 	link, err := netlink.LinkByName(BridgeName)
 	if err != nil {
 		return fmt.Errorf("get bridge %s: %w", BridgeName, err)
+	}
+	if link.Attrs().MTU != mtu {
+		if err = netlink.LinkSetMTU(link, mtu); err != nil {
+			return fmt.Errorf("set %s mtu %d: %w", BridgeName, mtu, err)
+		}
 	}
 
 	_, ipNet, err := net.ParseCIDR(subnetCIDR)
@@ -53,6 +59,6 @@ func setupBridge(ctx context.Context, gatewayIP, subnetCIDR string) error {
 		return fmt.Errorf("bring up %s: %w", BridgeName, err)
 	}
 
-	logger.Infof(ctx, "bridge %s configured with gateway %s", BridgeName, addr.IPNet)
+	logger.Infof(ctx, "bridge %s configured with gateway %s mtu %d", BridgeName, addr.IPNet, mtu)
 	return nil
 }
