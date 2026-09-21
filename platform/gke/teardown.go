@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/projecteru2/core/log"
 
@@ -41,13 +40,7 @@ func (g *GKE) Teardown(ctx context.Context, cfg *platform.TeardownConfig) error 
 	if !removed {
 		logger.Warnf(ctx, "alias %s:%s not present on nic0 of %s; skipping gcloud update", rangeName, cfg.SubnetCIDR, instance)
 	} else {
-		if _, err := runGcloud(
-			ctx,
-			"compute", "instances", "network-interfaces", "update", instance,
-			"--project", project, "--zone", zone,
-			"--network-interface", nic0Name,
-			"--aliases", strings.Join(kept, ";"),
-		); err != nil {
+		if err := updateNic0Aliases(ctx, project, zone, instance, kept); err != nil {
 			return fmt.Errorf("update aliases on %s: %w", instance, err)
 		}
 		logger.Infof(ctx, "removed alias %s:%s from %s; %d alias(es) remain", rangeName, cfg.SubnetCIDR, instance, len(kept))

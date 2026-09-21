@@ -29,7 +29,9 @@ VPC-routable IP directly from this server.
   `/var/lib/cocoon/net/leases.json`, independent of `--state-dir` so
   vk-cocoon's default reader path matches) on every allocation/release, and
   reloaded at daemon startup so a restart doesn't strand or double-assign
-  leases.
+  leases. A missing lease file is a normal first start; a lease file that
+  cannot be read or parsed is logged at Error and the daemon starts with an
+  empty table.
 
 ### Lease file format
 
@@ -60,7 +62,9 @@ IP is immediately reachable:
 - **Lease granted** -- adds a `/32` route for the VM's IP via `cni0`.
 - **Lease released or expired** -- removes the `/32` route. A DHCPRELEASE
   counts only when it arrives from the leased address with `ciaddr` set to it;
-  the client hardware address alone is not trusted.
+  the client hardware address alone is not trusted. A release is also dropped
+  when the lease it names was granted after the release packet arrived, so a
+  release that a renewal overtook cannot free the new lease.
 
 This keeps the kernel routing table minimal (only currently-leased IPs are
 routed) and means a VM's IP is reachable within the VPC as soon as it has a
@@ -126,9 +130,11 @@ omit the iptables step), and starts the DHCP server described above. It holds
 The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
 `dnsmasq` or `dhcpd` already holding that port makes the daemon fail to start.
 
-On `cocoon-net teardown`, the cloud resources (ENIs on Volcengine, the alias
-range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and the
-lease file are all removed (on GKE the boot cron job that reapplies the
+`cocoon-net teardown` refuses to run while a daemon holds the pidfile unless
+`--force` is passed, since removing the cloud allocation under a live DHCP
+server leaves later leases unroutable. On teardown, the cloud resources (ENIs
+on Volcengine, the alias range on GKE), the tagged `cocoon-net-drop` iptables
+rules, `pool.json`, and the lease file are all removed (on GKE the boot cron job that reapplies the
 guest-agent route fix is removed too). Pass the daemon's custom `--lease-file`
 to teardown to remove the same file. The `cni0` bridge, the FORWARD ACCEPT / NAT
 MASQUERADE rules, and the CNI conflist are left in place.

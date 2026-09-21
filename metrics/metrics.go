@@ -10,18 +10,30 @@ const (
 	subsystem = "net"
 )
 
-// DHCPLeaseTotal counts lease grant attempts by result, once per REQUEST that names an IP.
-var DHCPLeaseTotal = prometheus.NewCounterVec(
-	prometheus.CounterOpts{
-		Namespace: namespace,
-		Subsystem: subsystem,
-		Name:      "dhcp_lease_total",
-		Help:      "Number of DHCP lease grant attempts by result.",
-	},
-	[]string{"result"},
+var (
+	// DHCPLeaseTotal counts lease grant attempts by result, once per REQUEST that names an IP.
+	DHCPLeaseTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "dhcp_lease_total",
+			Help:      "Number of DHCP lease grant attempts by result.",
+		},
+		[]string{"result"},
+	)
+
+	SecondaryNICs = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Subsystem: subsystem,
+			Name:      "secondary_nics",
+			Help:      "Secondary NICs the pool expects and the host presents.",
+		},
+		[]string{"state"},
+	)
 )
 
 // Register installs the static collectors; the pool collector is registered separately.
 func Register(reg prometheus.Registerer) {
-	reg.MustRegister(DHCPLeaseTotal)
+	reg.MustRegister(DHCPLeaseTotal, SecondaryNICs)
 }

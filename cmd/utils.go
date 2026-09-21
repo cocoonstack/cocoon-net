@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -22,12 +23,12 @@ var (
 	flagPlatform     string
 	flagNodeName     string
 	flagSubnet       string
-	flagPoolSize     int
 	flagGateway      string
 	flagPrimaryNIC   string
 	flagDNS          string
 	flagStateDir     string
 	flagDryRun       bool
+	flagForce        bool
 	flagDropInternal bool
 	flagDropCIDRs    []string
 
@@ -39,10 +40,10 @@ func registerCommonFlags(cmd *cobra.Command, defaultPoolSize int) {
 	cmd.Flags().StringVar(&flagPlatform, "platform", "", "cloud platform (gke|volcengine); auto-detected from instance metadata if omitted")
 	cmd.Flags().StringVar(&flagNodeName, "node-name", "", "virtual node name (required)")
 	cmd.Flags().StringVar(&flagSubnet, "subnet", "", "VM subnet CIDR, e.g. 172.20.100.0/24 (required)")
-	cmd.Flags().IntVar(&flagPoolSize, "pool-size", defaultPoolSize, "number of IPs in the pool")
+	cmd.Flags().Int("pool-size", defaultPoolSize, "number of IPs in the pool")
 	cmd.Flags().StringVar(&flagGateway, "gateway", "", "gateway IP on cni0 (default: first IP in subnet)")
 	cmd.Flags().StringVar(&flagPrimaryNIC, "primary-nic", "", "host primary NIC (default: eth0 on volcengine, ens4 otherwise)")
-	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated DNS servers for DHCP clients")
+	cmd.Flags().StringVar(&flagDNS, "dns", "8.8.8.8,1.1.1.1", "comma-separated IPv4 DNS servers for DHCP clients")
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
 	cmd.Flags().BoolVar(&flagDropInternal, "drop-internal-access", false, "block VM-to-VM traffic within the cocoon subnet")
@@ -92,6 +93,25 @@ func resolveSubnet() error {
 	}
 	flagSubnet = ipNet.String()
 	return nil
+}
+
+func parseDNSFlag() ([]string, error) {
+	servers := splitTrim(flagDNS, ",")
+	for _, s := range servers {
+		if net.ParseIP(s).To4() == nil {
+			return nil, fmt.Errorf("--dns entry %q is not an IPv4 address", s)
+		}
+	}
+	return servers, nil
+}
+
+func mergeENIIDs(recorded, attached []string) []string {
+	for _, id := range attached {
+		if !slices.Contains(recorded, id) {
+			recorded = append(recorded, id)
+		}
+	}
+	return recorded
 }
 
 func splitTrim(s, sep string) []string {

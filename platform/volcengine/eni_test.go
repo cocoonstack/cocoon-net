@@ -1,8 +1,14 @@
 package volcengine
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 const (
@@ -58,19 +64,91 @@ func TestReusableENIs(t *testing.T) {
 	}
 }
 
-func TestIPShortfall_FullENIIsZero(t *testing.T) {
-	t.Parallel()
-
-	eni := newENIWithSecondaryIPs("eni-full", ipsPerENI)
-
-	var existing int
-	for _, pip := range eni.PrivateIPSets.PrivateIPSet {
-		if !pip.Primary {
-			existing++
-		}
+func TestEnsureENIsKeepsAnAttachedENIWhenTheWaitIsCut(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "calls.log")
+	attached := filepath.Join(dir, "attached")
+	script := `#!/bin/sh
+printf '%s\n' "$*" >> "$VE_TEST_LOG"
+case "$*" in
+  *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-1"}}' ;;
+  *AttachNetworkInterface*) : > "$VE_TEST_ATTACHED" ;;
+  *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write ve stub: %v", err)
 	}
-	if shortfall := ipsPerENI - existing; shortfall != 0 {
-		t.Errorf("got shortfall %d, want 0", shortfall)
+	t.Setenv("PATH", dir+":/bin:/usr/bin")
+	t.Setenv("VE_TEST_LOG", logPath)
+	t.Setenv("VE_TEST_ATTACHED", attached)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	type outcome struct {
+		result []networkInterface
+		err    error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+		done <- outcome{result, err}
+	}()
+	waitForFile(t, attached)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	got := <-done
+	if !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("err = %v, want the cancellation", got.err)
+	}
+	calls, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("read calls: %v", readErr)
+	}
+	kept := len(got.result) == 1 && got.result[0].NetworkInterfaceID == "eni-1"
+	deleted := strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-1")
+	if !kept && !deleted {
+		t.Fatalf("the attached ENI is neither in the result nor deleted: result=%v calls:\n%s", got.result, calls)
+	}
+}
+
+func TestEnsureENIsDeletesTheOrphanWhenTheAttachIsCanceled(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "calls.log")
+	attached := filepath.Join(dir, "attached")
+	script := `#!/bin/sh
+printf '%s\n' "$*" >> "$VE_TEST_LOG"
+case "$*" in
+  *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-orphan"}}' ;;
+  *AttachNetworkInterface*) : > "$VE_TEST_ATTACHED"; sleep 5 ;;
+  *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write ve stub: %v", err)
+	}
+	t.Setenv("PATH", dir+":/bin:/usr/bin")
+	t.Setenv("VE_TEST_LOG", logPath)
+	t.Setenv("VE_TEST_ATTACHED", attached)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+		done <- err
+	}()
+	waitForFile(t, attached)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want the cancellation", err)
+	}
+	calls, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("read calls: %v", readErr)
+	}
+	if !strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-orphan") {
+		t.Fatalf("orphan ENI not deleted after the canceled attach, calls:\n%s", calls)
 	}
 }
 
@@ -88,13 +166,16 @@ func unmarshalENIList(t *testing.T, fixture string) []networkInterface {
 	return resp.Result.NetworkInterfaceSets
 }
 
-func newENIWithSecondaryIPs(id string, n int) networkInterface {
-	eni := networkInterface{NetworkInterfaceID: id, Type: "secondary"}
-	for range n {
-		eni.PrivateIPSets.PrivateIPSet = append(eni.PrivateIPSets.PrivateIPSet, struct {
-			Primary          bool   `json:"Primary"`
-			PrivateIPAddress string `json:"PrivateIpAddress"`
-		}{PrivateIPAddress: "10.0.1.1"})
+func waitForFile(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s never appeared", path)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	return eni
 }

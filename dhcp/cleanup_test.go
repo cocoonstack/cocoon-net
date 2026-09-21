@@ -22,8 +22,8 @@ func TestRestoreLeasesDropsIPOutsidePool(t *testing.T) {
 	foreign := net.ParseIP("172.16.5.5").To4()
 	macIn := mustMAC(t, "aa:bb:cc:dd:ee:01")
 	macOut := mustMAC(t, "aa:bb:cc:dd:ee:02")
-	srv.leases.add(macIn, inside, time.Hour)
-	srv.leases.add(macOut, foreign, time.Hour)
+	srv.leases.add(macIn, inside, time.Hour, time.Now())
+	srv.leases.add(macOut, foreign, time.Hour, time.Now())
 
 	srv.restoreLeases(t.Context())
 

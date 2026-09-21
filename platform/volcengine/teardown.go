@@ -36,7 +36,7 @@ func (v *Volcengine) Teardown(ctx context.Context, cfg *platform.TeardownConfig)
 			}
 
 			if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
-				return err
+				return errors.Join(errs, err)
 			}
 		}
 

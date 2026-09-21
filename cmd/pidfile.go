@@ -34,7 +34,7 @@ func acquirePIDFile() error {
 		if !errors.Is(err, fs.ErrExist) {
 			return fmt.Errorf("create pid file: %w", err)
 		}
-		if err := checkExistingPID(); err != nil {
+		if err := checkExistingPID(pidFile); err != nil {
 			return err
 		}
 		_ = os.Remove(pidFile)
@@ -43,8 +43,8 @@ func acquirePIDFile() error {
 }
 
 // a missing, corrupt, or stale (process dead) PID file is safe to overwrite
-func checkExistingPID() error {
-	data, err := os.ReadFile(pidFile)
+func checkExistingPID(path string) error {
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil
 	}

@@ -72,7 +72,7 @@ This will:
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
 5. Configure `cni0` bridge, iptables, sysctl
-6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
+6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist` (bridge and veth MTU follow `ens4`, 1460 on GCE)
 7. Save pool state to `/var/lib/cocoon/net/pool.json`
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
@@ -90,7 +90,7 @@ sudo cocoon-net adopt \
 
 This configures bridge, CNI conflist, and sysctl from cocoon-net's templates, applies the guest-agent route fix (local route removal plus the boot cron; `adopt` fails where `init` only warns), and writes the pool state file. The existing alias IP range is preserved. By default, existing iptables rules are also preserved — pass `--manage-iptables` to let cocoon-net rewrite them.
 
-After adopting, run `cocoon-net daemon` to start DHCP. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `aliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown warns that the alias is not present and the entry stays — remove it manually. `teardown` also removes the boot cron job (`/etc/cron.d/cocoon-net-fix-alias`) that reapplies the guest-agent route fix, regardless of the alias outcome.
+After adopting, run `cocoon-net daemon` to start DHCP; the daemon re-applies the guest-agent route fix on every start, so the boot cron only covers the window before it runs. `cocoon-net status` and future re-runs of `adopt` work normally. On `teardown`, cocoon-net will attempt to remove the per-instance alias assuming it was provisioned from the shared `cocoon-pods` range (the `aliasRangeName` field in `pool.json` is empty for adopted nodes, so teardown falls back to that default); if the alias was bound from a differently-named range, teardown warns that the alias is not present and the entry stays — remove it manually. `teardown` also removes the boot cron job (`/etc/cron.d/cocoon-net-fix-alias`) that reapplies the guest-agent route fix, regardless of the alias outcome.
 
 ## Manual Steps (for reference)
 
@@ -173,6 +173,7 @@ cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
     {
       "type": "bridge",
       "bridge": "cni0",
+      "mtu": 1460,
       "isGateway": false,
       "ipMasq": false,
       "portIsolation": true,
@@ -182,7 +183,11 @@ cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
   ]
 }
 EOF
+ip link set cni0 mtu 1460
 ```
+
+`mtu` matches `ens4` (the GCE VPC MTU is 1460); `cocoon-net init`, `adopt`, and
+`daemon` read it from the primary NIC and set the bridge to the same value.
 
 ## IP Plan
 

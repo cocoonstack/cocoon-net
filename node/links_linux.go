@@ -30,6 +30,14 @@ func LinkMACs(ifaces []string) map[string]string {
 	return macs
 }
 
+func linkMTU(name string) (int, error) {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return 0, fmt.Errorf("lookup link %s: %w", name, err)
+	}
+	return link.Attrs().MTU, nil
+}
+
 func setupSecondaryNICs(ifaces []string) error {
 	for _, iface := range ifaces {
 		link, err := netlink.LinkByName(iface)

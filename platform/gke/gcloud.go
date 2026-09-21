@@ -129,19 +129,22 @@ func assignAliasIP(ctx context.Context, project, zone, instance, cidr string) er
 	}
 	merged = append(merged, fmt.Sprintf("%s:%s", aliasRangeName, cidr))
 
-	if _, err := runGcloud(
-		ctx,
-		"compute", "instances", "network-interfaces", "update",
-		instance,
-		"--project", project,
-		"--zone", zone,
-		"--network-interface", nic0Name,
-		"--aliases", strings.Join(merged, ";"),
-	); err != nil {
+	if err := updateNic0Aliases(ctx, project, zone, instance, merged); err != nil {
 		return fmt.Errorf("assign alias: %w", err)
 	}
 	logger.Infof(ctx, "added alias %s:%s to %s; %d alias(es) total", aliasRangeName, cidr, instance, len(merged))
 	return nil
+}
+
+func updateNic0Aliases(ctx context.Context, project, zone, instance string, aliases []string) error {
+	_, err := runGcloud(
+		ctx,
+		"compute", "instances", "network-interfaces", "update", instance,
+		"--project", project, "--zone", zone,
+		"--network-interface", nic0Name,
+		"--aliases", strings.Join(aliases, ";"),
+	)
+	return err
 }
 
 // describeNic0Aliases returns nic0's alias IP ranges; an instance without nic0 is an error.

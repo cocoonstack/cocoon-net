@@ -23,6 +23,7 @@ func newTeardownCmd() *cobra.Command {
 	cmd.Flags().StringVar(&flagStateDir, "state-dir", defaultStateDir, "state directory")
 	cmd.Flags().StringVar(&flagLeaseFile, "lease-file", defaultLeaseFile, "lease persistence file")
 	cmd.Flags().BoolVar(&flagDryRun, "dry-run", false, "show what would be done without making changes")
+	cmd.Flags().BoolVar(&flagForce, "force", false, "tear down even while a cocoon-net daemon is running")
 
 	return cmd
 }
@@ -40,6 +41,11 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("[dry-run] would teardown %s networking for node %s (subnet %s)\n",
 			state.Platform, state.NodeName, state.Subnet)
 		return nil
+	}
+	if !flagForce {
+		if err = checkExistingPID(pidFile); err != nil {
+			return fmt.Errorf("%w; stop it first or pass --force", err)
+		}
 	}
 
 	plat, err := newPlatform(ctx, state.Platform)

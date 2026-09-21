@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/projecteru2/core/log"
+
+	"github.com/cocoonstack/cocoon-net/metrics"
 )
 
 const (
@@ -43,28 +46,36 @@ type Config struct {
 func Setup(ctx context.Context, cfg *Config) error {
 	logger := log.WithFunc("node.Setup")
 
-	if len(cfg.SecondaryNICs) > 0 {
-		logger.Infof(ctx, "secondary NICs: %v", cfg.SecondaryNICs)
+	mtu, err := linkMTU(cfg.PrimaryNIC)
+	if err != nil {
+		return fmt.Errorf("primary NIC: %w", err)
 	}
-	if err := setupSecondaryNICs(cfg.SecondaryNICs); err != nil {
+	nics, err := usableSecondaryNICs(ctx, cfg.SecondaryNICs, PresentLinks(cfg.SecondaryNICs))
+	if err != nil {
+		return err
+	}
+	if len(nics) > 0 {
+		logger.Infof(ctx, "secondary NICs: %v", nics)
+	}
+	if err := setupSecondaryNICs(nics); err != nil {
 		return fmt.Errorf("secondary NICs: %w", err)
 	}
 
-	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR); err != nil {
+	if err := setupBridge(ctx, cfg.Gateway, cfg.SubnetCIDR, mtu); err != nil {
 		return fmt.Errorf("bridge: %w", err)
 	}
 
-	if err := setupSysctl(ctx, cfg.PrimaryNIC, cfg.SecondaryNICs); err != nil {
+	if err := setupSysctl(ctx, cfg.PrimaryNIC, nics); err != nil {
 		return fmt.Errorf("sysctl: %w", err)
 	}
 
 	if cfg.SkipIPTables {
 		logger.Info(ctx, "iptables setup skipped (SkipIPTables=true)")
-	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, cfg.SecondaryNICs, cfg.DropInternalAccess, cfg.DropCIDRs); err != nil {
+	} else if err := setupIPTables(ctx, cfg.SubnetCIDR, nics, cfg.DropInternalAccess, cfg.DropCIDRs); err != nil {
 		return fmt.Errorf("iptables: %w", err)
 	}
 
-	if err := writeCNIConflist(ctx); err != nil {
+	if err := writeCNIConflist(ctx, mtu); err != nil {
 		return fmt.Errorf("cni conflist: %w", err)
 	}
 
@@ -72,30 +83,13 @@ func Setup(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func writeCNIConflist(ctx context.Context) error {
+func writeCNIConflist(ctx context.Context, mtu int) error {
 	logger := log.WithFunc("node.writeCNIConflist")
 
-	conflist := map[string]any{
-		"cniVersion": "1.0.0",
-		"name":       "cocoon-dhcp",
-		"plugins": []map[string]any{
-			{
-				"type":          "bridge",
-				"bridge":        BridgeName,
-				"isGateway":     false,
-				"ipMasq":        false,
-				"portIsolation": true, // block same-node VM-to-VM at L2 (BR_ISOLATED per veth)
-				"macspoofchk":   true, // pin veth source MAC (anti-spoof)
-				"ipam":          map[string]any{},
-			},
-		},
-	}
-	encoded, err := json.MarshalIndent(conflist, "", "  ")
+	encoded, err := cniConflist(mtu)
 	if err != nil {
-		return fmt.Errorf("marshal cni conflist: %w", err)
+		return err
 	}
-	encoded = append(encoded, '\n')
-
 	if err := os.MkdirAll(cniConfDir, dirPerm); err != nil {
 		return fmt.Errorf("create cni conf dir: %w", err)
 	}
@@ -111,4 +105,43 @@ func writeCNIConflist(ctx context.Context) error {
 	}
 	logger.Infof(ctx, "wrote CNI conflist to %s", confPath)
 	return nil
+}
+
+func cniConflist(mtu int) ([]byte, error) {
+	conflist := map[string]any{
+		"cniVersion": "1.0.0",
+		"name":       "cocoon-dhcp",
+		"plugins": []map[string]any{
+			{
+				"type":          "bridge",
+				"bridge":        BridgeName,
+				"mtu":           mtu,
+				"isGateway":     false,
+				"ipMasq":        false,
+				"portIsolation": true, // block same-node VM-to-VM at L2 (BR_ISOLATED per veth)
+				"macspoofchk":   true, // pin veth source MAC (anti-spoof)
+				"ipam":          map[string]any{},
+			},
+		},
+	}
+	encoded, err := json.MarshalIndent(conflist, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("marshal cni conflist: %w", err)
+	}
+	return append(encoded, '\n'), nil
+}
+
+func usableSecondaryNICs(ctx context.Context, expected, present []string) ([]string, error) {
+	logger := log.WithFunc("node.usableSecondaryNICs")
+	metrics.SecondaryNICs.WithLabelValues("expected").Set(float64(len(expected)))
+	metrics.SecondaryNICs.WithLabelValues("present").Set(float64(len(present)))
+	if len(expected) > 0 && len(present) == 0 {
+		return nil, fmt.Errorf("none of the secondary NICs %v is present", expected)
+	}
+	for _, nic := range expected {
+		if !slices.Contains(present, nic) {
+			logger.Warnf(ctx, "secondary NIC %s is missing; the pool IPs behind it stay unreachable until it is re-attached", nic)
+		}
+	}
+	return present, nil
 }

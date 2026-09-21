@@ -61,3 +61,53 @@ func TestResolveSubnet(t *testing.T) {
 		})
 	}
 }
+
+func TestMergeENIIDsKeepsRecordedAndAddsNew(t *testing.T) {
+	got := mergeENIIDs([]string{"eni-1", "eni-2"}, []string{"eni-2", "eni-3"})
+	if want := []string{"eni-1", "eni-2", "eni-3"}; !slices.Equal(got, want) {
+		t.Fatalf("mergeENIIDs = %v, want %v", got, want)
+	}
+	if got := mergeENIIDs(nil, []string{"eni-1"}); !slices.Equal(got, []string{"eni-1"}) {
+		t.Fatalf("mergeENIIDs(nil) = %v", got)
+	}
+}
+
+func TestParseDNSFlagRejectsNonIPv4(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		want    []string
+		wantErr bool
+	}{
+		{"two servers", "8.8.8.8, 1.1.1.1", []string{"8.8.8.8", "1.1.1.1"}, false},
+		{"empty list", "", nil, false},
+		{"typo", "8.8.8.8,1.1.1.1x", nil, true},
+		{"ipv6", "2001:4860:4860::8888", nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flagDNS = tt.in
+			got, err := parseDNSFlag()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("parseDNSFlag(%q) err = %v, wantErr %v", tt.in, err, tt.wantErr)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("parseDNSFlag(%q) = %v, want %v", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestInitAndAdoptKeepTheirOwnPoolSizeDefaults(t *testing.T) {
+	root := NewRootCmd()
+	for name, want := range map[string]int{"init": 140, "adopt": 253} {
+		sub, _, err := root.Find([]string{name})
+		if err != nil {
+			t.Fatalf("find %s: %v", name, err)
+		}
+		got, err := sub.Flags().GetInt("pool-size")
+		if err != nil || got != want {
+			t.Fatalf("%s pool-size = %d, %v, want %d", name, got, err, want)
+		}
+	}
+}

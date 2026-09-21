@@ -62,11 +62,7 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		eniID := resp.Result.NetworkInterfaceID
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
-			delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
-			if _, delErr := runVe(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); delErr != nil {
-				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
-			}
-			cancel()
+			deleteOrphanENI(ctx, eniID)
 			return result, err
 		}
 
@@ -78,23 +74,29 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		if attachErr != nil {
 			// best-effort delete so one attach failure neither leaks quota nor stalls the pool build
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
-			if _, delErr := runVe(
-				ctx, "vpc", "DeleteNetworkInterface",
-				"--NetworkInterfaceId", eniID,
-			); delErr != nil {
-				logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, delErr)
+			deleteOrphanENI(ctx, eniID)
+			if ctx.Err() != nil {
+				return result, ctx.Err()
 			}
 			continue
 		}
 
+		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
 			return result, err
 		}
-
-		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		logger.Infof(ctx, "created and attached ENI %s (%d/%d)", eniID, i, count)
 	}
 	return result, nil
+}
+
+func deleteOrphanENI(ctx context.Context, eniID string) {
+	logger := log.WithFunc("volcengine.deleteOrphanENI")
+	delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
+	defer cancel()
+	if _, err := runVe(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); err != nil {
+		logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, err)
+	}
 }
 
 func selectReusableENIs(enis []networkInterface, count int) []networkInterface {

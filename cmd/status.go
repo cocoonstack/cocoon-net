@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/projecteru2/core/log"
 	"github.com/spf13/cobra"
@@ -44,7 +45,7 @@ func runStatus(cmd *cobra.Command, _ []string) error {
 	fmt.Printf("Subnet:     %s\n", state.Subnet)
 	fmt.Printf("Gateway:    %s\n", state.Gateway)
 	fmt.Printf("IPs:        %d\n", len(state.IPs))
-	fmt.Printf("Updated:    %s\n", state.UpdatedAt.Format("2006-01-02T15:04:05Z"))
+	fmt.Printf("Updated:    %s\n", state.UpdatedAt.Format(time.RFC3339))
 	if status != nil {
 		if len(status.ENIs) > 0 {
 			fmt.Printf("ENIs:       %d\n", len(status.ENIs))

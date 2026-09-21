@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -34,12 +35,19 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	if err := resolveSubnet(); err != nil {
 		return err
 	}
-	dnsServers := splitTrim(flagDNS, ",")
+	dnsServers, err := parseDNSFlag()
+	if err != nil {
+		return err
+	}
+	poolSize, err := cmd.Flags().GetInt("pool-size")
+	if err != nil {
+		return err
+	}
 
 	cfg := &platform.Config{
 		NodeName:   flagNodeName,
 		SubnetCIDR: flagSubnet,
-		PoolSize:   flagPoolSize,
+		PoolSize:   poolSize,
 		Gateway:    flagGateway,
 		PrimaryNIC: flagPrimaryNIC,
 	}
@@ -67,9 +75,10 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	if _, loadErr := pool.Load(ctx, flagStateDir); loadErr != nil {
+	existing, loadErr := pool.Load(ctx, flagStateDir)
+	if loadErr != nil {
 		// a first provisioning that fails midway still leaves teardown something to act on
-		if err := state.Save(ctx); err != nil {
+		if err = state.Save(ctx); err != nil {
 			return fmt.Errorf("save seed pool state: %w", err)
 		}
 	}
@@ -82,6 +91,13 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	result, err := plat.ProvisionNetwork(ctx, cfg)
 	if err != nil {
+		if result != nil && len(result.ENIIDs) > 0 {
+			recorded := cmp.Or(existing, state)
+			recorded.ENIIDs = mergeENIIDs(recorded.ENIIDs, result.ENIIDs)
+			if saveErr := recorded.Save(ctx); saveErr != nil {
+				logger.Error(ctx, saveErr, "save the attached ENIs after the failed provisioning")
+			}
+		}
 		return fmt.Errorf("provision network: %w", err)
 	}
 	logger.Infof(ctx, "provisioned %d IPs on subnet %s", len(result.IPs), result.SubnetCIDR)

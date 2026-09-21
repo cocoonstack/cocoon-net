@@ -45,7 +45,14 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err := resolveSubnet(); err != nil {
 		return err
 	}
-	dnsServers := splitTrim(flagDNS, ",")
+	dnsServers, err := parseDNSFlag()
+	if err != nil {
+		return err
+	}
+	poolSize, err := cmd.Flags().GetInt("pool-size")
+	if err != nil {
+		return err
+	}
 
 	gateway, err := platform.ResolveGateway(flagGateway, flagSubnet)
 	if err != nil {
@@ -57,7 +64,7 @@ func runAdopt(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("adopt platform: %w", err)
 	}
-	ips, poolENIs, err := adoptPool(ctx, plat, flagSubnet, gateway, flagPoolSize)
+	ips, poolENIs, err := adoptPool(ctx, plat, flagSubnet, gateway, poolSize)
 	if err != nil {
 		return fmt.Errorf("compute ip list: %w", err)
 	}
