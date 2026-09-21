@@ -121,6 +121,7 @@ func writeCNIConflist(ctx context.Context) error {
 }
 
 func usableSecondaryNICs(ctx context.Context, expected, present []string) ([]string, error) {
+	logger := log.WithFunc("node.usableSecondaryNICs")
 	metrics.SecondaryNICs.WithLabelValues("expected").Set(float64(len(expected)))
 	metrics.SecondaryNICs.WithLabelValues("present").Set(float64(len(present)))
 	if len(expected) > 0 && len(present) == 0 {
@@ -128,7 +129,7 @@ func usableSecondaryNICs(ctx context.Context, expected, present []string) ([]str
 	}
 	for _, nic := range expected {
 		if !slices.Contains(present, nic) {
-			log.WithFunc("node.usableSecondaryNICs").Warnf(ctx, "secondary NIC %s is missing; the pool IPs behind it stay unreachable until it is re-attached", nic)
+			logger.Warnf(ctx, "secondary NIC %s is missing; the pool IPs behind it stay unreachable until it is re-attached", nic)
 		}
 	}
 	return present, nil

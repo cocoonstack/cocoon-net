@@ -91,10 +91,11 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 }
 
 func deleteOrphanENI(ctx context.Context, eniID string) {
+	logger := log.WithFunc("volcengine.deleteOrphanENI")
 	delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
 	defer cancel()
 	if _, err := runVe(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); err != nil {
-		log.WithFunc("volcengine.deleteOrphanENI").Warnf(ctx, "delete orphan ENI %s: %v", eniID, err)
+		logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, err)
 	}
 }
 
