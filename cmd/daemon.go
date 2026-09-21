@@ -81,7 +81,7 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 
 	state.PrimaryNIC = cmp.Or(state.PrimaryNIC, platform.DefaultNIC(state.Platform))
 	if state.Platform == platform.PlatformGKE {
-		if err := gke.New().Adopt(ctx, &platform.Config{NodeName: state.NodeName, SubnetCIDR: state.Subnet, Gateway: state.Gateway, PrimaryNIC: state.PrimaryNIC}); err != nil {
+		if err = gke.New().Adopt(ctx, &platform.Config{NodeName: state.NodeName, SubnetCIDR: state.Subnet, Gateway: state.Gateway, PrimaryNIC: state.PrimaryNIC}); err != nil {
 			return fmt.Errorf("re-apply the guest-agent route fix: %w", err)
 		}
 	}

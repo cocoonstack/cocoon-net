@@ -43,7 +43,7 @@ func runTeardown(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 	if !flagForce {
-		if err := checkExistingPID(pidFile); err != nil {
+		if err = checkExistingPID(pidFile); err != nil {
 			return fmt.Errorf("%w; stop it first or pass --force", err)
 		}
 	}

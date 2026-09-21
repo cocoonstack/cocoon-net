@@ -44,7 +44,7 @@ func acquirePIDFile() error {
 
 // a missing, corrupt, or stale (process dead) PID file is safe to overwrite
 func checkExistingPID(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil
 	}
