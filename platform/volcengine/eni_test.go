@@ -64,6 +64,40 @@ func TestReusableENIs(t *testing.T) {
 	}
 }
 
+func TestEnsureENIsKeepsAnAttachedENIWhenTheWaitIsCut(t *testing.T) {
+	dir := t.TempDir()
+	logPath := filepath.Join(dir, "calls.log")
+	script := `#!/bin/sh
+printf '%s\n' "$*" >> "$VE_TEST_LOG"
+case "$*" in
+  *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-1"}}' ;;
+  *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
+		t.Fatalf("write ve stub: %v", err)
+	}
+	t.Setenv("PATH", dir+":/bin:/usr/bin")
+	t.Setenv("VE_TEST_LOG", logPath)
+	ctx, cancel := context.WithTimeout(t.Context(), createPropagationDelay+time.Second)
+	defer cancel()
+
+	result, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the cut propagation wait", err)
+	}
+	if len(result) != 1 || result[0].NetworkInterfaceID != "eni-1" {
+		t.Fatalf("an attached ENI dropped from the result when the wait was cut: %v", result)
+	}
+	calls, readErr := os.ReadFile(logPath)
+	if readErr != nil {
+		t.Fatalf("read calls: %v", readErr)
+	}
+	if !strings.Contains(string(calls), "AttachNetworkInterface --NetworkInterfaceId eni-1") || strings.Contains(string(calls), "DeleteNetworkInterface") {
+		t.Fatalf("unexpected call sequence:\n%s", calls)
+	}
+}
+
 func TestEnsureENIsDeletesTheOrphanWhenTheAttachIsCanceled(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "calls.log")

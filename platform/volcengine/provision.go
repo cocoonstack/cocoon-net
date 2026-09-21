@@ -38,15 +38,17 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 	logger.Infof(ctx, "instance id: %s", instanceID)
 
 	enis, err := ensureENIs(ctx, subnetID, sgID, instanceID, cfg.NodeName, enisPerNode)
+	eniIDs := make([]string, len(enis))
+	for i, eni := range enis {
+		eniIDs[i] = eni.NetworkInterfaceID
+	}
 	if err != nil {
-		return nil, fmt.Errorf("ensure ENIs: %w", err)
+		return &platform.NetworkResult{ENIIDs: eniIDs}, fmt.Errorf("ensure ENIs: %w", err)
 	}
 	logger.Infof(ctx, "%d ENIs ready", len(enis))
 
-	eniIDs := make([]string, len(enis))
 	var allIPs []string
-	for i, eni := range enis {
-		eniIDs[i] = eni.NetworkInterfaceID
+	for _, eni := range enis {
 		var existing []string
 		for _, pip := range eni.PrivateIPSets.PrivateIPSet {
 			if !pip.Primary {

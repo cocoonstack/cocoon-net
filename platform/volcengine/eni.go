@@ -81,11 +81,10 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 			continue
 		}
 
+		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
 			return result, err
 		}
-
-		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		logger.Infof(ctx, "created and attached ENI %s (%d/%d)", eniID, i, count)
 	}
 	return result, nil

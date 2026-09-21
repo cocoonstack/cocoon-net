@@ -85,6 +85,12 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	result, err := plat.ProvisionNetwork(ctx, cfg)
 	if err != nil {
+		if result != nil && len(result.ENIIDs) > 0 {
+			state.ENIIDs = result.ENIIDs
+			if saveErr := state.Save(ctx); saveErr != nil {
+				logger.Error(ctx, saveErr, "save the attached ENIs after the failed provisioning")
+			}
+		}
 		return fmt.Errorf("provision network: %w", err)
 	}
 	logger.Infof(ctx, "provisioned %d IPs on subnet %s", len(result.IPs), result.SubnetCIDR)
