@@ -49,7 +49,7 @@ type Server struct {
 	offers *pendingOffers
 
 	lifecycleMu sync.Mutex // serializes multi-structure lease, route, and pool transitions
-	linkIndex   int        // cached kernel interface index for route operations
+	linkIndex   int
 }
 
 // New creates a DHCP server. IPs are the allocatable pool (excluding gateway).
@@ -107,34 +107,30 @@ func (s *Server) Run(ctx context.Context) error {
 		controlErrCh = control.serve(runCtx)
 	}
 
+	var controlErr error
 	select {
 	case <-ctx.Done():
-		_ = conn.Close()
-		cancelRun()
-		if control != nil {
-			if err := <-controlErrCh; err != nil {
-				return fmt.Errorf("stop control server: %w", err)
-			}
-		}
-		// held until exit: a handler still queued must not start a transaction the process cannot finish
-		s.lifecycleMu.Lock()
-		logger.Info(ctx, "DHCP server stopped")
-		return nil
 	case err := <-errCh:
 		cancelRun()
 		return fmt.Errorf("DHCP server: %w", err)
-	case err := <-controlErrCh:
-		_ = conn.Close()
-		cancelRun()
-		if err == nil {
-			if ctx.Err() != nil {
-				logger.Info(ctx, "DHCP server stopped")
-				return nil
-			}
-			return errors.New("control server stopped unexpectedly")
+	case controlErr = <-controlErrCh:
+		controlErrCh = nil
+		if controlErr == nil && ctx.Err() == nil {
+			controlErr = errors.New("stopped unexpectedly")
 		}
-		return fmt.Errorf("control server: %w", err)
 	}
+	_ = conn.Close()
+	cancelRun()
+	if controlErrCh != nil {
+		controlErr = <-controlErrCh
+	}
+	if controlErr != nil {
+		return fmt.Errorf("control server: %w", controlErr)
+	}
+	// held until exit: a handler still queued must not start a transaction the process cannot finish
+	s.lifecycleMu.Lock()
+	logger.Info(ctx, "DHCP server stopped")
+	return nil
 }
 
 // PoolAvailable returns the number of unallocated pool IPs, read per metrics scrape.
