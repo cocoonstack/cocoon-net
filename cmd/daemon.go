@@ -22,6 +22,7 @@ import (
 	"github.com/cocoonstack/cocoon-net/metrics"
 	"github.com/cocoonstack/cocoon-net/node"
 	"github.com/cocoonstack/cocoon-net/platform"
+	"github.com/cocoonstack/cocoon-net/platform/gke"
 )
 
 const (
@@ -79,6 +80,11 @@ func runDaemon(cmd *cobra.Command, _ []string) error {
 	logger.Infof(ctx, "pool loaded: %d IPs, subnet %s, gateway %s", len(state.IPs), state.Subnet, state.Gateway)
 
 	state.PrimaryNIC = cmp.Or(state.PrimaryNIC, platform.DefaultNIC(state.Platform))
+	if state.Platform == platform.PlatformGKE {
+		if err := gke.New().Adopt(ctx, &platform.Config{NodeName: state.NodeName, SubnetCIDR: state.Subnet, Gateway: state.Gateway, PrimaryNIC: state.PrimaryNIC}); err != nil {
+			return fmt.Errorf("re-apply the guest-agent route fix: %w", err)
+		}
+	}
 	if setupErr := node.Setup(ctx, nodeConfigFromState(state, flagSkipIPTables)); setupErr != nil {
 		return fmt.Errorf("node setup: %w", setupErr)
 	}
