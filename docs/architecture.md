@@ -92,8 +92,11 @@ syncs the TAP to the veth, and the hypervisor advertises the TAP MTU to the
 guest, so nothing cocoon-net produces can emit a frame the egress NIC cannot
 carry. A node whose MTU changes invalidates Firecracker fork and hibernate
 snapshots captured at the old value (cocoon rejects a clone whose target network
-MTU differs from the snapshot's); re-capture them after the first daemon start
-that applied the new MTU. IPAM is intentionally empty -- VMs obtain their IP
+MTU differs from the snapshot's). The daemon restart that applies the new MTU
+only resizes the bridge and rewrites the conflist; a VM that is already running
+keeps the veth and TAP it was started with, so a snapshot taken from it still
+records the old MTU. Recreate the source VM after that restart, then capture
+the snapshot again. IPAM is intentionally empty -- VMs obtain their IP
 from the [embedded DHCP server](dhcp.md), not from CNI. In a CocoonSet:
 
 ```yaml
