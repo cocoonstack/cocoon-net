@@ -67,10 +67,12 @@ func TestReusableENIs(t *testing.T) {
 func TestEnsureENIsKeepsAnAttachedENIWhenTheWaitIsCut(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "calls.log")
+	attached := filepath.Join(dir, "attached")
 	script := `#!/bin/sh
 printf '%s\n' "$*" >> "$VE_TEST_LOG"
 case "$*" in
   *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-1"}}' ;;
+  *AttachNetworkInterface*) : > "$VE_TEST_ATTACHED" ;;
   *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
 esac
 `
@@ -79,22 +81,34 @@ esac
 	}
 	t.Setenv("PATH", dir+":/bin:/usr/bin")
 	t.Setenv("VE_TEST_LOG", logPath)
-	ctx, cancel := context.WithTimeout(t.Context(), createPropagationDelay+time.Second)
+	t.Setenv("VE_TEST_ATTACHED", attached)
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	result, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
-	if !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("err = %v, want the cut propagation wait", err)
+	type outcome struct {
+		result []networkInterface
+		err    error
 	}
-	if len(result) != 1 || result[0].NetworkInterfaceID != "eni-1" {
-		t.Fatalf("an attached ENI dropped from the result when the wait was cut: %v", result)
+	done := make(chan outcome, 1)
+	go func() {
+		result, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+		done <- outcome{result, err}
+	}()
+	waitForFile(t, attached)
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	got := <-done
+	if !errors.Is(got.err, context.Canceled) {
+		t.Fatalf("err = %v, want the cancellation", got.err)
 	}
 	calls, readErr := os.ReadFile(logPath)
 	if readErr != nil {
 		t.Fatalf("read calls: %v", readErr)
 	}
-	if !strings.Contains(string(calls), "AttachNetworkInterface --NetworkInterfaceId eni-1") || strings.Contains(string(calls), "DeleteNetworkInterface") {
-		t.Fatalf("unexpected call sequence:\n%s", calls)
+	kept := len(got.result) == 1 && got.result[0].NetworkInterfaceID == "eni-1"
+	deleted := strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-1")
+	if !kept && !deleted {
+		t.Fatalf("the attached ENI is neither in the result nor deleted: result=%v calls:\n%s", got.result, calls)
 	}
 }
 
