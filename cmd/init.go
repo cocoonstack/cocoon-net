@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"cmp"
 	"fmt"
 	"strings"
 
@@ -70,7 +71,8 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		DropCIDRs:          flagDropCIDRs,
 		StateDir:           flagStateDir,
 	}
-	if _, loadErr := pool.Load(ctx, flagStateDir); loadErr != nil {
+	existing, loadErr := pool.Load(ctx, flagStateDir)
+	if loadErr != nil {
 		// a first provisioning that fails midway still leaves teardown something to act on
 		if err = state.Save(ctx); err != nil {
 			return fmt.Errorf("save seed pool state: %w", err)
@@ -86,8 +88,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	result, err := plat.ProvisionNetwork(ctx, cfg)
 	if err != nil {
 		if result != nil && len(result.ENIIDs) > 0 {
-			state.ENIIDs = result.ENIIDs
-			if saveErr := state.Save(ctx); saveErr != nil {
+			recorded := cmp.Or(existing, state)
+			recorded.ENIIDs = mergeENIIDs(recorded.ENIIDs, result.ENIIDs)
+			if saveErr := recorded.Save(ctx); saveErr != nil {
 				logger.Error(ctx, saveErr, "save the attached ENIs after the failed provisioning")
 			}
 		}

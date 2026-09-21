@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -102,6 +103,15 @@ func parseDNSFlag() ([]string, error) {
 		}
 	}
 	return servers, nil
+}
+
+func mergeENIIDs(recorded, attached []string) []string {
+	for _, id := range attached {
+		if !slices.Contains(recorded, id) {
+			recorded = append(recorded, id)
+		}
+	}
+	return recorded
 }
 
 func splitTrim(s, sep string) []string {

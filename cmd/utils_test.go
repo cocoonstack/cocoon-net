@@ -62,6 +62,16 @@ func TestResolveSubnet(t *testing.T) {
 	}
 }
 
+func TestMergeENIIDsKeepsRecordedAndAddsNew(t *testing.T) {
+	got := mergeENIIDs([]string{"eni-1", "eni-2"}, []string{"eni-2", "eni-3"})
+	if want := []string{"eni-1", "eni-2", "eni-3"}; !slices.Equal(got, want) {
+		t.Fatalf("mergeENIIDs = %v, want %v", got, want)
+	}
+	if got := mergeENIIDs(nil, []string{"eni-1"}); !slices.Equal(got, []string{"eni-1"}) {
+		t.Fatalf("mergeENIIDs(nil) = %v", got)
+	}
+}
+
 func TestParseDNSFlagRejectsNonIPv4(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -68,7 +68,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 		}
 	}
 	if len(allIPs) == 0 {
-		return nil, fmt.Errorf("no secondary IPs assigned across %d ENIs", len(enis))
+		return &platform.NetworkResult{ENIIDs: eniIDs}, fmt.Errorf("no secondary IPs assigned across %d ENIs", len(enis))
 	}
 	logger.Infof(ctx, "assigned %d secondary IPs", len(allIPs))
 
@@ -76,7 +76,7 @@ func (v *Volcengine) ProvisionNetwork(ctx context.Context, cfg *platform.Config)
 
 	gateway, err := platform.ResolveGateway(cfg.Gateway, cfg.SubnetCIDR)
 	if err != nil {
-		return nil, fmt.Errorf("compute gateway: %w", err)
+		return &platform.NetworkResult{ENIIDs: eniIDs}, fmt.Errorf("compute gateway: %w", err)
 	}
 
 	platform.SortIPs(allIPs)
