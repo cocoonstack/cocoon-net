@@ -72,7 +72,7 @@ This will:
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
 5. Configure `cni0` bridge, iptables, sysctl
-6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
+6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist` (bridge and veth MTU follow `ens4`, 1460 on GCE)
 7. Save pool state to `/var/lib/cocoon/net/pool.json`
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
@@ -173,6 +173,7 @@ cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
     {
       "type": "bridge",
       "bridge": "cni0",
+      "mtu": 1460,
       "isGateway": false,
       "ipMasq": false,
       "portIsolation": true,
@@ -182,7 +183,11 @@ cat > /etc/cni/net.d/30-cocoon-dhcp.conflist <<'EOF'
   ]
 }
 EOF
+ip link set cni0 mtu 1460
 ```
+
+`mtu` matches `ens4` (the GCE VPC MTU is 1460); `cocoon-net init`, `adopt`, and
+`daemon` read it from the primary NIC and set the bridge to the same value.
 
 ## IP Plan
 

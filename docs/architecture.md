@@ -74,6 +74,7 @@ Platform-specific setup, prerequisites, and troubleshooting:
   "plugins": [{
     "type": "bridge",
     "bridge": "cni0",
+    "mtu": 1460,
     "isGateway": false,
     "ipMasq": false,
     "portIsolation": true,
@@ -84,9 +85,16 @@ Platform-specific setup, prerequisites, and troubleshooting:
 ```
 
 `portIsolation` blocks same-node VM-to-VM traffic at L2 and `macspoofchk`
-pins each veth's source MAC (see [Traffic isolation](dhcp.md)). IPAM is
-intentionally empty -- VMs obtain their IP from the [embedded DHCP
-server](dhcp.md), not from CNI. In a CocoonSet:
+pins each veth's source MAC (see [Traffic isolation](dhcp.md)). `mtu` is the
+primary NIC's MTU read at setup (1460 on GCE, 1500 on Volcengine): the `cni0`
+bridge is set to the same value, the veth inherits it from the conflist, cocoon
+syncs the TAP to the veth, and the hypervisor advertises the TAP MTU to the
+guest, so nothing cocoon-net produces can emit a frame the egress NIC cannot
+carry. A node whose MTU changes invalidates Firecracker fork and hibernate
+snapshots captured at the old value (cocoon rejects a clone whose target network
+MTU differs from the snapshot's); re-capture them after the first daemon start
+that applied the new MTU. IPAM is intentionally empty -- VMs obtain their IP
+from the [embedded DHCP server](dhcp.md), not from CNI. In a CocoonSet:
 
 ```yaml
 spec:
