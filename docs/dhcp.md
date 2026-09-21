@@ -127,8 +127,11 @@ omit the iptables step), and starts the DHCP server described above. It holds
 `/run/cocoon-net.pid` and refuses to start while another daemon owns it. See
 [Installation](installation.md#systemd-unit) for the systemd unit.
 
-The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
-`dnsmasq` or `dhcpd` already holding that port makes the daemon fail to start.
+The DHCP server binds UDP port 67 on all addresses but device-binds the socket
+to `cni0`, so only DHCP arriving on the bridge reaches it. The socket sets
+`SO_REUSEADDR` and `SO_REUSEPORT`, so a host `dnsmasq` or `dhcpd` on port 67
+does not stop the daemon from starting; keep any other DHCP server off `cni0`,
+or both answer the same broadcasts.
 
 `cocoon-net teardown` refuses to run while a daemon holds the pidfile unless
 `--force` is passed, since removing the cloud allocation under a live DHCP

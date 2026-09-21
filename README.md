@@ -52,7 +52,7 @@ Full steps in [Installation](docs/installation.md).
 | [cocoon](https://github.com/cocoonstack/cocoon) | MicroVM engine (Cloud Hypervisor + Firecracker) |
 | [cocoon-common](https://github.com/cocoonstack/cocoon-common) | Shared metadata, Kubernetes, and logging helpers |
 | [cocoon-operator](https://github.com/cocoonstack/cocoon-operator) | CocoonSet and Hibernation CRDs |
-| [cocoon-webhook](https://github.com/cocoonstack/cocoon-webhook) | Admission webhook for sticky scheduling |
+| [cocoon-webhook](https://github.com/cocoonstack/cocoon-webhook) | Admission webhook for cocoon pod ownership, scale-down protection, and CocoonSet/CocoonHibernation validation |
 | [vk-cocoon](https://github.com/cocoonstack/vk-cocoon) | Virtual kubelet provider |
 
 ## Development

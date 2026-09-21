@@ -85,10 +85,10 @@ This will:
 2. Create subnet `172.20.100.0/24` in the VPC (if it does not exist)
 3. Reuse every attached non-primary ENI regardless of its subnet, and create new ones in the VM subnet to reach 7
 4. Top each ENI up to 20 secondary IPs (140 total); `teardown` later detaches and deletes all of them, including reused ones -- detach any hand-provisioned secondary ENI first if it must survive `teardown`
-5. Bring up `eth1`–`eth7` interfaces
-6. Configure `cni0` bridge, iptables, sysctl
-7. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
-8. Save pool state to `/var/lib/cocoon/net/pool.json`
+5. Save pool state to `/var/lib/cocoon/net/pool.json`
+6. Bring up `eth1`–`eth7` interfaces
+7. Configure `cni0` bridge, iptables, sysctl
+8. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist`
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
 

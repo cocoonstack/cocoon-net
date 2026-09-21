@@ -71,9 +71,9 @@ This will:
 2. Verify the shared secondary range `cocoon-pods` on the node's subnet covers `--subnet` (creating it at `--subnet` if missing — see Prerequisites for multi-node)
 3. Assign the alias IP `172.20.100.0/24` to `nic0` of the instance
 4. Remove the local route installed by the GCE guest agent
-5. Configure `cni0` bridge, iptables, sysctl
-6. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist` (bridge and veth MTU follow `ens4`, 1460 on GCE)
-7. Save pool state to `/var/lib/cocoon/net/pool.json`
+5. Save pool state to `/var/lib/cocoon/net/pool.json`
+6. Configure `cni0` bridge, iptables, sysctl
+7. Write CNI conflist to `/etc/cni/net.d/30-cocoon-dhcp.conflist` (bridge and veth MTU follow `ens4`, 1460 on GCE)
 
 After init, run `cocoon-net daemon` to start the embedded DHCP server. Host routes (/32) are added dynamically when VMs obtain leases.
 
