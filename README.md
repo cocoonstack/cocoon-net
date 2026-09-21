@@ -7,18 +7,16 @@ iptables DNAT, no external DHCP server dependency.
 
 **Documentation: [cocoonstack.github.io/cocoon-net](https://cocoonstack.github.io/cocoon-net/)** (source in [`docs/`](docs/)).
 
-```
-cocoon-net init          cocoon-net daemon
-      |                        |
-      v                        v
-Cloud provisioning       Node setup (NICs up, bridge, sysctl, iptables, CNI conflist)
-(alias IPs / ENIs)             |
-      |                        v
-      v                  DHCP server on cni0
-pool.json  <----------        |
-                               v
-                         On lease: add /32 route
-                         On release: del /32 route
+## Architecture
+
+```mermaid
+flowchart LR
+    provision["init / adopt"] --> state["pool.json"]
+    provision --> setup["Node networking"]
+    state --> daemon["daemon"]
+    daemon --> setup
+    daemon --> dhcp["DHCP on cni0"]
+    dhcp --> routes["Lease-based /32 routes"]
 ```
 
 **Two-phase operation**: `cocoon-net init` does one-time cloud provisioning
@@ -30,7 +28,7 @@ long-running service that sets up node networking, serves DHCP, and manages
 routes.
 Full details in [Architecture](docs/architecture.md).
 
-## Supported platforms
+### Supported platforms
 
 | Platform | Mechanism | Max IPs/node |
 |---|---|---|
@@ -47,29 +45,6 @@ sudo cocoon-net daemon
 
 Full steps in [Installation](docs/installation.md).
 
-## Documentation
-
-- [Architecture](docs/architecture.md) -- the two-phase model, package
-  layout, CNI integration, credentials
-- [Embedded DHCP server](docs/dhcp.md) -- lease lifecycle, the lease file,
-  dynamic host routes, VM traffic isolation
-- [Configuration](docs/configuration.md) -- every flag and environment
-  variable, plus the `pool.json` state schema
-- [Installation](docs/installation.md) -- prebuilt binary, building from
-  source, the systemd unit, command usage
-- [GKE VPC-native networking](docs/gke.md)
-- [Volcengine VPC-native networking](docs/volcengine.md)
-
-## Development
-
-```bash
-make build      # build binary
-make test       # run tests with coverage
-make lint       # golangci-lint (linux + darwin)
-make fmt        # gofumpt + goimports
-make help       # show all targets
-```
-
 ## Related projects
 
 | Project | Role |
@@ -79,6 +54,15 @@ make help       # show all targets
 | [cocoon-operator](https://github.com/cocoonstack/cocoon-operator) | CocoonSet and Hibernation CRDs |
 | [cocoon-webhook](https://github.com/cocoonstack/cocoon-webhook) | Admission webhook for sticky scheduling |
 | [vk-cocoon](https://github.com/cocoonstack/vk-cocoon) | Virtual kubelet provider |
+
+## Development
+
+```bash
+make build      # build binary
+make test       # run tests with coverage
+make lint       # golangci-lint (linux + darwin)
+make fmt        # gofumpt + goimports
+```
 
 ## License
 
