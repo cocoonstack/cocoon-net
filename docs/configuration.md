@@ -21,6 +21,7 @@ variables below; runtime state (what was provisioned, and for whom) lives in
 | `--drop-cidr` | none | (repeatable, `init`/`adopt`) Destination CIDR to DROP at `FORWARD` for VM traffic -- see [DHCP: traffic isolation](dhcp.md#traffic-isolation) |
 | `--drop-internal-access` | `false` | (`init`/`adopt`) DROP `FORWARD` traffic within the node's own `--subnet` |
 | `--dry-run` | `false` | (`init`/`adopt`/`teardown`) Preview changes without applying |
+| `--force` | `false` | (`teardown`) Tear down even while a `cocoon-net daemon` holds the pidfile |
 | `--skip-iptables` | `false` | (daemon) Skip iptables setup |
 | `--manage-iptables` | `false` | (adopt) Let cocoon-net write iptables rules |
 | `--metrics-addr` | `:9092` | (daemon) Prometheus listen address for `/metrics`; empty to disable |
@@ -43,6 +44,7 @@ default) at `/metrics`:
 | `cocoon_net_dhcp_lease_total{result}` | counter | DHCP lease-grant attempts by outcome (`ok`/`failed`) |
 | `cocoon_net_dhcp_pool_available` | gauge | Unallocated IPs in the DHCP pool |
 | `cocoon_net_dhcp_lease_active` | gauge | Active (unexpired) DHCP leases |
+| `cocoon_net_secondary_nics{state}` | gauge | Secondary NICs the pool expects vs present on the host (`expected`/`present`); a gap means an ENI was detached out of band |
 
 ## Pool state (`pool.json`)
 

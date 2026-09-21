@@ -29,6 +29,7 @@ var (
 	flagDNS          string
 	flagStateDir     string
 	flagDryRun       bool
+	flagForce        bool
 	flagDropInternal bool
 	flagDropCIDRs    []string
 

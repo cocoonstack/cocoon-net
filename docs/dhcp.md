@@ -130,9 +130,11 @@ omit the iptables step), and starts the DHCP server described above. It holds
 The DHCP server binds UDP port 67 on all addresses, not just `cni0`; a host
 `dnsmasq` or `dhcpd` already holding that port makes the daemon fail to start.
 
-On `cocoon-net teardown`, the cloud resources (ENIs on Volcengine, the alias
-range on GKE), the tagged `cocoon-net-drop` iptables rules, `pool.json`, and the
-lease file are all removed (on GKE the boot cron job that reapplies the
+`cocoon-net teardown` refuses to run while a daemon holds the pidfile unless
+`--force` is passed, since removing the cloud allocation under a live DHCP
+server leaves later leases unroutable. On teardown, the cloud resources (ENIs
+on Volcengine, the alias range on GKE), the tagged `cocoon-net-drop` iptables
+rules, `pool.json`, and the lease file are all removed (on GKE the boot cron job that reapplies the
 guest-agent route fix is removed too). Pass the daemon's custom `--lease-file`
 to teardown to remove the same file. The `cni0` bridge, the FORWARD ACCEPT / NAT
 MASQUERADE rules, and the CNI conflist are left in place.
