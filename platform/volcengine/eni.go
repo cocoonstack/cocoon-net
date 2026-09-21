@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -100,12 +101,7 @@ func deleteOrphanENI(ctx context.Context, eniID string) {
 }
 
 func selectReusableENIs(enis []networkInterface, count int) []networkInterface {
-	var reusable []networkInterface
-	for _, e := range enis {
-		if e.Type != eniTypePrimary {
-			reusable = append(reusable, e)
-		}
-	}
+	reusable := slices.DeleteFunc(slices.Clone(enis), func(e networkInterface) bool { return e.Type == eniTypePrimary })
 	return reusable[:min(len(reusable), count)]
 }
 
