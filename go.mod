@@ -1,6 +1,6 @@
 module github.com/cocoonstack/cocoon-net
 
-go 1.27.0
+go 1.27.1
 
 require (
 	github.com/cocoonstack/cocoon-common v0.3.4
