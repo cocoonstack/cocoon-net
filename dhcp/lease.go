@@ -186,7 +186,7 @@ func (s *leaseStore) save() error {
 }
 
 func (s *leaseStore) load() error {
-	data, err := os.ReadFile(s.filePath) //nolint:gosec // the path is the operator's state dir
+	data, err := os.ReadFile(s.filePath)
 	if err != nil {
 		return fmt.Errorf("read leases from %s: %w", s.filePath, err)
 	}
