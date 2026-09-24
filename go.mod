@@ -6,7 +6,7 @@ require (
 	github.com/cocoonstack/cocoon-common v0.3.4
 	github.com/coreos/go-iptables v0.8.0
 	github.com/insomniacslk/dhcp v0.0.0-20260407060928-11b94ed970f2
-	github.com/projecteru2/core v0.1.3
+	github.com/projecteru2/core v0.1.5
 	github.com/prometheus/client_golang v1.24.1
 	github.com/spf13/cobra v1.10.2
 	github.com/vishvananda/netlink v1.3.1
@@ -19,7 +19,7 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20241215232642-bb51bb14a506 // indirect
 	github.com/cockroachdb/redact v1.1.8 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/getsentry/sentry-go v0.48.0 // indirect
+	github.com/getsentry/sentry-go v0.49.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/native v1.1.0 // indirect
@@ -42,8 +42,8 @@ require (
 	github.com/vishvananda/netns v0.0.5 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260825221802-da73d73af1c5 // indirect
-	google.golang.org/grpc v1.83.1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260918162117-cecb64721679 // indirect
+	google.golang.org/grpc v1.83.2 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
