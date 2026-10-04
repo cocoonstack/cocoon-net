@@ -12,15 +12,20 @@ import (
 	"github.com/cocoonstack/cocoon-net/platform"
 )
 
-func TestTeardownDeletesDetachedPersistedENI(t *testing.T) {
+func TestTeardownDeletesDetachedPersistedENIAndIgnoresMissingIDs(t *testing.T) {
 	dir := t.TempDir()
 	logPath := filepath.Join(dir, "calls.log")
 	script := `#!/bin/sh
 printf '%s\n' "$*" >> "$VE_TEST_LOG"
 case "$*" in
   *DescribeNetworkInterfaces*)
-    printf '%s\n' '{"Result":{"NetworkInterfaceSets":[{"NetworkInterfaceId":"eni-detached","Type":"secondary","DeviceId":""}]}}'
+    if [ -f "$VE_TEST_DELETED" ]; then
+      printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}'
+    else
+      printf '%s\n' '{"Result":{"NetworkInterfaceSets":[{"NetworkInterfaceId":"eni-detached","Type":"secondary","DeviceId":""}]}}'
+    fi
     ;;
+  *DeleteNetworkInterface*) : > "$VE_TEST_DELETED" ;;
 esac
 `
 	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
@@ -28,10 +33,13 @@ esac
 	}
 	t.Setenv("PATH", dir)
 	t.Setenv("VE_TEST_LOG", logPath)
+	t.Setenv("VE_TEST_DELETED", filepath.Join(dir, "deleted"))
 
 	v := &Volcengine{}
-	if err := v.Teardown(t.Context(), &platform.TeardownConfig{ENIIDs: []string{"eni-detached"}}); err != nil {
-		t.Fatalf("teardown: %v", err)
+	for range 2 {
+		if err := v.Teardown(t.Context(), &platform.TeardownConfig{ENIIDs: []string{"eni-deleted", "eni-detached"}}); err != nil {
+			t.Fatalf("teardown: %v", err)
+		}
 	}
 
 	calls, err := os.ReadFile(logPath)
@@ -39,8 +47,9 @@ esac
 		t.Fatalf("read calls: %v", err)
 	}
 	want := strings.Join([]string{
-		"vpc DescribeNetworkInterfaces --NetworkInterfaceIds.1 eni-detached --PageSize 100",
+		"vpc DescribeNetworkInterfaces --NetworkInterfaceIds.1 eni-deleted --NetworkInterfaceIds.2 eni-detached --PageSize 100",
 		"vpc DeleteNetworkInterface --NetworkInterfaceId eni-detached",
+		"vpc DescribeNetworkInterfaces --NetworkInterfaceIds.1 eni-deleted --NetworkInterfaceIds.2 eni-detached --PageSize 100",
 	}, "\n")
 	if got := strings.TrimSpace(string(calls)); got != want {
 		t.Fatalf("got calls %q, want %q", got, want)

@@ -3,6 +3,7 @@ package volcengine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -61,10 +62,13 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 			return result, fmt.Errorf("parse create ENI %d response: %w", i, unmarshalErr)
 		}
 		eniID := resp.Result.NetworkInterfaceID
+		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
-			deleteOrphanENI(ctx, eniID)
-			return result, err
+			if cleanupErr := deleteOrphanENI(ctx, eniID); cleanupErr != nil {
+				return result, errors.Join(err, cleanupErr)
+			}
+			return result[:len(result)-1], err
 		}
 
 		_, attachErr := runVe(
@@ -73,16 +77,17 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 			"--InstanceId", instanceID,
 		)
 		if attachErr != nil {
-			// best-effort delete so one attach failure neither leaks quota nor stalls the pool build
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
-			deleteOrphanENI(ctx, eniID)
+			if cleanupErr := deleteOrphanENI(ctx, eniID); cleanupErr != nil {
+				return result, errors.Join(attachErr, cleanupErr, ctx.Err())
+			}
+			result = result[:len(result)-1]
 			if ctx.Err() != nil {
 				return result, ctx.Err()
 			}
 			continue
 		}
 
-		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
 			return result, err
 		}
@@ -91,13 +96,13 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 	return result, nil
 }
 
-func deleteOrphanENI(ctx context.Context, eniID string) {
-	logger := log.WithFunc("volcengine.deleteOrphanENI")
+func deleteOrphanENI(ctx context.Context, eniID string) error {
 	delCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), orphanDeleteTimeout)
 	defer cancel()
 	if _, err := runVe(delCtx, "vpc", "DeleteNetworkInterface", "--NetworkInterfaceId", eniID); err != nil {
-		logger.Warnf(ctx, "delete orphan ENI %s: %v", eniID, err)
+		return fmt.Errorf("delete orphan ENI %s: %w", eniID, err)
 	}
+	return nil
 }
 
 func selectReusableENIs(enis []networkInterface, count int) []networkInterface {
