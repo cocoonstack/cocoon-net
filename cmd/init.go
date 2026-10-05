@@ -77,6 +77,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	}
 	existing, loadErr := pool.Load(ctx, flagStateDir)
 	if loadErr != nil {
+		// a first provisioning that fails midway still leaves teardown something to act on
 		if err = state.Save(ctx); err != nil {
 			return fmt.Errorf("save seed pool state: %w", err)
 		}
