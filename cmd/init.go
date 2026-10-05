@@ -90,12 +90,12 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	logger.Infof(ctx, "platform: %s", plat.Name())
 
 	result, err := plat.ProvisionNetwork(ctx, cfg)
+	recorded := cmp.Or(existing, state)
 	if err != nil {
 		if result != nil && len(result.ENIIDs) > 0 {
-			recorded := cmp.Or(existing, state)
 			recorded.ENIIDs = mergeENIIDs(recorded.ENIIDs, result.ENIIDs)
 			if saveErr := recorded.Save(ctx); saveErr != nil {
-				logger.Error(ctx, saveErr, "save the attached ENIs after the failed provisioning")
+				logger.Error(ctx, saveErr, "save ENIs after failed provisioning")
 			}
 		}
 		return fmt.Errorf("provision network: %w", err)
@@ -106,7 +106,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	state.Gateway = result.Gateway
 	state.PrimaryNIC = result.PrimaryNIC
 	state.SecondaryNICs = result.SecondaryNICs
-	state.ENIIDs = result.ENIIDs
+	state.ENIIDs = mergeENIIDs(recorded.ENIIDs, result.ENIIDs)
 	state.IPs = result.IPs
 	state.AliasRangeName = result.AliasRangeName
 	if err := state.Save(ctx); err != nil {

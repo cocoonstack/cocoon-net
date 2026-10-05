@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -95,7 +97,6 @@ esac
 		done <- outcome{result, err}
 	}()
 	waitForFile(t, attached)
-	time.Sleep(50 * time.Millisecond)
 	cancel()
 	got := <-done
 	if !errors.Is(got.err, context.Canceled) {
@@ -112,43 +113,63 @@ esac
 	}
 }
 
-func TestEnsureENIsDeletesTheOrphanWhenTheAttachIsCanceled(t *testing.T) {
-	dir := t.TempDir()
-	logPath := filepath.Join(dir, "calls.log")
-	attached := filepath.Join(dir, "attached")
-	script := `#!/bin/sh
+func TestEnsureENIsRetainsTheOrphanUntilCleanupSucceeds(t *testing.T) {
+	for _, cleanupFails := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cleanup-fails=%t", cleanupFails), func(t *testing.T) {
+			dir := t.TempDir()
+			logPath := filepath.Join(dir, "calls.log")
+			started := filepath.Join(dir, "started")
+			script := `#!/bin/sh
 printf '%s\n' "$*" >> "$VE_TEST_LOG"
-case "$*" in
-  *CreateNetworkInterface*) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-orphan"}}' ;;
-  *AttachNetworkInterface*) : > "$VE_TEST_ATTACHED"; sleep 5 ;;
-  *DescribeNetworkInterfaces*) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
+case "$2" in
+  CreateNetworkInterface) printf '%s\n' '{"Result":{"NetworkInterfaceId":"eni-orphan"}}' ;;
+  AttachNetworkInterface) : > "$VE_TEST_STARTED"; exec sleep 5 ;;
+  DeleteNetworkInterface)
+    if [ "$VE_TEST_DELETE_FAIL" = true ]; then echo 'delete unavailable' >&2; exit 1; fi
+    ;;
+  DescribeNetworkInterfaces) printf '%s\n' '{"Result":{"NetworkInterfaceSets":[]}}' ;;
 esac
 `
-	if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
-		t.Fatalf("write ve stub: %v", err)
-	}
-	t.Setenv("PATH", dir+":/bin:/usr/bin")
-	t.Setenv("VE_TEST_LOG", logPath)
-	t.Setenv("VE_TEST_ATTACHED", attached)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
+			if err := os.WriteFile(filepath.Join(dir, "ve"), []byte(script), 0o755); err != nil {
+				t.Fatalf("write ve stub: %v", err)
+			}
+			t.Setenv("PATH", dir+":/bin:/usr/bin")
+			t.Setenv("VE_TEST_LOG", logPath)
+			t.Setenv("VE_TEST_STARTED", started)
+			t.Setenv("VE_TEST_DELETE_FAIL", strconv.FormatBool(cleanupFails))
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
 
-	done := make(chan error, 1)
-	go func() {
-		_, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
-		done <- err
-	}()
-	waitForFile(t, attached)
-	cancel()
-	if err := <-done; !errors.Is(err, context.Canceled) {
-		t.Fatalf("err = %v, want the cancellation", err)
-	}
-	calls, readErr := os.ReadFile(logPath)
-	if readErr != nil {
-		t.Fatalf("read calls: %v", readErr)
-	}
-	if !strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-orphan") {
-		t.Fatalf("orphan ENI not deleted after the canceled attach, calls:\n%s", calls)
+			type outcome struct {
+				result []networkInterface
+				err    error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				result, err := ensureENIs(ctx, "subnet-1", "sg-1", "i-1", "cocoon-pool", 1)
+				done <- outcome{result, err}
+			}()
+			waitForFile(t, started)
+			cancel()
+			got := <-done
+			if !errors.Is(got.err, context.Canceled) {
+				t.Fatalf("err = %v, want the cancellation", got.err)
+			}
+			if cleanupFails {
+				if len(got.result) != 1 || got.result[0].NetworkInterfaceID != "eni-orphan" || !strings.Contains(got.err.Error(), "delete orphan ENI eni-orphan") {
+					t.Fatalf("lost failed cleanup: result=%v err=%v", got.result, got.err)
+				}
+			} else if len(got.result) != 0 {
+				t.Fatalf("deleted orphan remains in result: %v", got.result)
+			}
+			calls, readErr := os.ReadFile(logPath)
+			if readErr != nil {
+				t.Fatalf("read calls: %v", readErr)
+			}
+			if !strings.Contains(string(calls), "DeleteNetworkInterface --NetworkInterfaceId eni-orphan") {
+				t.Fatalf("orphan ENI not deleted after cancellation, calls:\n%s", calls)
+			}
+		})
 	}
 }
 
