@@ -62,13 +62,12 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 			return result, fmt.Errorf("parse create ENI %d response: %w", i, unmarshalErr)
 		}
 		eniID := resp.Result.NetworkInterfaceID
-		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 
 		if err := sleepCtx(ctx, createPropagationDelay); err != nil {
 			if cleanupErr := deleteOrphanENI(ctx, eniID); cleanupErr != nil {
-				return result, errors.Join(err, cleanupErr)
+				return append(result, networkInterface{NetworkInterfaceID: eniID}), errors.Join(err, cleanupErr)
 			}
-			return result[:len(result)-1], err
+			return result, err
 		}
 
 		_, attachErr := runVe(
@@ -79,15 +78,15 @@ func ensureENIs(ctx context.Context, subnetID, sgID, instanceID, prefix string, 
 		if attachErr != nil {
 			logger.Warnf(ctx, "attach ENI %s: %v", eniID, attachErr)
 			if cleanupErr := deleteOrphanENI(ctx, eniID); cleanupErr != nil {
-				return result, errors.Join(attachErr, cleanupErr, ctx.Err())
+				return append(result, networkInterface{NetworkInterfaceID: eniID}), errors.Join(attachErr, cleanupErr, ctx.Err())
 			}
-			result = result[:len(result)-1]
 			if ctx.Err() != nil {
 				return result, ctx.Err()
 			}
 			continue
 		}
 
+		result = append(result, networkInterface{NetworkInterfaceID: eniID})
 		if err := sleepCtx(ctx, attachPropagationDelay); err != nil {
 			return result, err
 		}
